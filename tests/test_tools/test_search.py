@@ -1,5 +1,4 @@
 # tests/test_tools/test_search.py
-import os
 import pytest
 
 # Import the module to patch its TavilyClient symbol

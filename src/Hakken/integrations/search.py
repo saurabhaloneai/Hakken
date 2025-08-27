@@ -8,18 +8,14 @@ It includes both a class-based integration and a simple function interface.
 import os
 import json
 import logging
-from typing import Dict, List, Literal, Optional, Any, Union
+from typing import Dict, List, Literal, Optional, Any
 from dataclasses import dataclass
-from datetime import datetime
 from dotenv import load_dotenv
+from tavily import TavilyClient
 load_dotenv()
 
-try:
-    from tavily import TavilyClient
-except ImportError:
-    raise ImportError(
-        "Tavily client not found. Install with: pip install tavily-python"
-    )
+
+
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -372,27 +368,3 @@ def get_search_urls(query: str, max_results: int = 5) -> List[str]:
     integration = TavilyIntegration()
     results = integration.search(query, max_results)
     return integration.extract_urls_from_results(results)
-
-
-# Test function for development
-def test_search():
-    """Test function to verify search functionality"""
-    try:
-        integration = TavilyIntegration()
-        results = integration.search("Python programming", max_results=3)
-        print("Search successful!")
-        print(f"Found {len(results.get('results', []))} results")
-        
-        formatted = integration.format_search_results(results, "markdown")
-        print("\nFormatted results:")
-        print(formatted[:500] + "..." if len(formatted) > 500 else formatted)
-        
-        return True
-    except Exception as e:
-        print(f"Search test failed: {e}")
-        return False
-
-
-if __name__ == "__main__":
-    # Run test if executed directly
-    test_search()
