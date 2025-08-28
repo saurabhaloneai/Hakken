@@ -1,22 +1,72 @@
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from vllm import LLM, SamplingParams
 import json
 import math
 import re
 from Hakken.integrations.search import internet_search, TavilyIntegration
 
-class SimpleAgent:
-    def __init__(self):
-        model_name = ""
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.float16,
-            device_map="auto",
-            trust_remote_code=True
+class vLLMAgent:
+    def __init__(self, model_name="Qwen/Qwen2.5-7B-Instruct", quantization=None):
+        """
+        Initialize vLLM Agent with specified model
+        
+        VRAM Requirements:
+        - "microsoft/Phi-3.5-mini-instruct" (3.8B): ~8GB VRAM
+        - "Qwen/Qwen2.5-7B-Instruct" (7B): ~14GB VRAM  
+        - "meta-llama/Llama-3.1-8B-Instruct" (8B): ~16GB VRAM
+        - "Qwen/Qwen2.5-Coder-32B-Instruct" (32B): ~32GB with quantization
+        - "meta-llama/Llama-3.1-70B-Instruct" (70B): ~70GB with quantization
+        - "deepseek-ai/DeepSeek-V3-Base" (671B MoE): ~80-160GB VRAM
+        
+        quantization options: None, "awq", "gptq", "squeezellm", "fp8"
+        """
+        print(f"🚀 Initializing vLLM with model: {model_name}")
+        
+        # vLLM initialization parameters based on VRAM
+        vllm_params = {
+            "model": model_name,
+            "tensor_parallel_size": 1,  # Increase for multi-GPU setups
+            "gpu_memory_utilization": 0.85,  # Use 85% of GPU memory
+            "trust_remote_code": True,
+            "dtype": "half",  # Use float16 for efficiency
+        }
+        
+        # Add quantization if specified
+        if quantization:
+            vllm_params["quantization"] = quantization
+            print(f"🔧 Using {quantization} quantization to reduce VRAM usage")
+        
+        # Adjust max_model_len based on available memory and model
+        if "phi" in model_name.lower():
+            vllm_params["max_model_len"] = 16384  # Phi models
+        elif "7b" in model_name.lower() or "8b" in model_name.lower():
+            vllm_params["max_model_len"] = 32768  # 7B/8B models
+        elif "32b" in model_name.lower():
+            vllm_params["max_model_len"] = 24576  # Optimal for 32B on 32GB VRAM
+        elif "70b" in model_name.lower():
+            vllm_params["max_model_len"] = 12288  # Quantized 70B models
+        else:
+            vllm_params["max_model_len"] = 16384  # Safe default
+        
+        # Initialize vLLM engine
+        try:
+            self.llm = LLM(**vllm_params)
+        except Exception as e:
+            print(f"❌ Failed to initialize vLLM: {e}")
+            print("💡 Try reducing gpu_memory_utilization or max_model_len")
+            raise
+        
+        # Sampling parameters
+        self.sampling_params = SamplingParams(
+            temperature=0.1,
+            top_p=0.9,
+            max_tokens=8000,
+            repetition_penalty=1.1,
+            stop=["<|im_end|>", "<|endoftext|>"]
         )
+        
         self.conversation_history = []
+        self.model_name = model_name
         
         self.tools = {
             "web_search": self.web_search,
@@ -101,17 +151,44 @@ class SimpleAgent:
         return f"Weather in {city}: 22°C, sunny with light clouds"
 
     def format_messages_for_chat(self, messages):
-        """Format messages for Hermes-3 chat template"""
-        formatted = ""
-        for msg in messages:
-            if msg["role"] == "system":
-                formatted += f"<|im_start|>system\n{msg['content']}<|im_end|>\n"
-            elif msg["role"] == "user":
-                formatted += f"<|im_start|>user\n{msg['content']}<|im_end|>\n"
-            elif msg["role"] == "assistant":
-                formatted += f"<|im_start|>assistant\n{msg['content']}<|im_end|>\n"
-            elif msg["role"] == "tool":
-                formatted += f"<|im_start|>tool\n{msg['content']}<|im_end|>\n"
+        """Format messages for chat template - adapts to different model formats"""
+        if "qwen" in self.model_name.lower():
+            # Qwen format
+            formatted = "<|im_start|>system\nYou are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>\n"
+        elif "llama" in self.model_name.lower():
+            # Llama format
+            formatted = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are a helpful AI assistant.<|eot_id|>\n"
+        elif "deepseek" in self.model_name.lower():
+            # DeepSeek format (similar to general format)
+            formatted = "<|im_start|>system\nYou are a helpful AI assistant created by DeepSeek.<|im_end|>\n"
+        else:
+            # Generic format
+            formatted = "<|im_start|>system\nYou are a helpful AI assistant.<|im_end|>\n"
+        
+        for msg in messages[1:]:  # Skip system message as we handle it above
+            if "qwen" in self.model_name.lower() or "deepseek" in self.model_name.lower():
+                if msg["role"] == "user":
+                    formatted += f"<|im_start|>user\n{msg['content']}<|im_end|>\n"
+                elif msg["role"] == "assistant":
+                    formatted += f"<|im_start|>assistant\n{msg['content']}<|im_end|>\n"
+                elif msg["role"] == "tool":
+                    formatted += f"<|im_start|>tool\n{msg['content']}<|im_end|>\n"
+            elif "llama" in self.model_name.lower():
+                if msg["role"] == "user":
+                    formatted += f"<|start_header_id|>user<|end_header_id|>\n\n{msg['content']}<|eot_id|>\n"
+                elif msg["role"] == "assistant":
+                    formatted += f"<|start_header_id|>assistant<|end_header_id|>\n\n{msg['content']}<|eot_id|>\n"
+                elif msg["role"] == "tool":
+                    formatted += f"<|start_header_id|>tool<|end_header_id|>\n\n{msg['content']}<|eot_id|>\n"
+        
+        # Add assistant start token
+        if "qwen" in self.model_name.lower() or "deepseek" in self.model_name.lower():
+            formatted += "<|im_start|>assistant\n"
+        elif "llama" in self.model_name.lower():
+            formatted += "<|start_header_id|>assistant<|end_header_id|>\n\n"
+        else:
+            formatted += "<|im_start|>assistant\n"
+            
         return formatted
 
     def create_system_prompt(self):
@@ -127,7 +204,6 @@ class SimpleAgent:
 - Any information that changes frequently
 - Information you don't have in your knowledge
 - Verify you result with multiple sources 
-
 
 **calculator**: Use for mathematical operations like:
 - Percentages, tips, taxes (e.g., "50 * 0.15")  
@@ -161,23 +237,12 @@ If no tools needed, give a normal response."""
         ] + messages
         
         prompt = self.format_messages_for_chat(full_messages)
-        prompt += "<|im_start|>assistant\n"
         
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+        # Generate with vLLM
+        outputs = self.llm.generate([prompt], self.sampling_params)
+        response = outputs[0].outputs[0].text.strip()
         
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=8000,
-                temperature=0.1,
-                do_sample=True,
-                pad_token_id=self.tokenizer.eos_token_id,
-                eos_token_id=self.tokenizer.eos_token_id,
-                repetition_penalty=1.1
-            )
-        
-        response = self.tokenizer.decode(outputs[0][inputs['input_ids'].shape[-1]:], skip_special_tokens=True)
-        return response.strip()
+        return response
 
     def parse_tool_call(self, response):
         """Extract tool call from response"""
@@ -274,7 +339,7 @@ If no tools needed, give a normal response."""
     def run(self, user_message, max_iterations=10):
         messages = self.conversation_history + [{"role": "user", "content": user_message}]
         
-        print(f"🤖 Starting agent with max {max_iterations} iterations")
+        print(f"🤖 Starting vLLM agent with max {max_iterations} iterations")
         
         for i in range(max_iterations):
             current_iteration = i + 1
@@ -326,9 +391,36 @@ If no tools needed, give a normal response."""
         self.conversation_history = []
         print("🗑️  Conversation history cleared")
 
+    def update_sampling_params(self, **kwargs):
+        """Update sampling parameters for different use cases"""
+        for key, value in kwargs.items():
+            if hasattr(self.sampling_params, key):
+                setattr(self.sampling_params, key, value)
+                print(f"📊 Updated {key} to {value}")
+
 # Usage example
 if __name__ == "__main__":
-    agent = SimpleAgent()
+    # Initialize with your preferred model based on your VRAM
+    gpu_memory_gb = 24  # Set your actual VRAM here
+    
+    if gpu_memory_gb >= 80:
+        model_choice = "deepseek-ai/DeepSeek-V3-Base"
+        quantization = None
+    elif gpu_memory_gb >= 48:
+        model_choice = "meta-llama/Llama-3.1-70B-Instruct"  
+        quantization = "awq"  # Use quantization to fit in 48GB
+    elif gpu_memory_gb >= 32:
+        model_choice = "Qwen/Qwen2.5-Coder-32B-Instruct"
+        quantization = "awq"
+    elif gpu_memory_gb >= 16:
+        model_choice = "Qwen/Qwen2.5-7B-Instruct"
+        quantization = None
+    else:
+        model_choice = "microsoft/Phi-3.5-mini-instruct"
+        quantization = None
+    
+    print(f"🎯 Selected model for {gpu_memory_gb}GB VRAM: {model_choice}")
+    agent = vLLMAgent(model_name=model_choice, quantization=quantization)
 
     # Test the time query that should use web search
     print("="*60)
@@ -337,7 +429,7 @@ if __name__ == "__main__":
 
     # Continue conversation with history
     print("\n" + "="*60)
-    result2 = agent.run("What about 20% tip on the same amount?")
+    result2 = agent.run("What about calculating 20% tip on $50?")
     print(f"\n🎯 Final Result: {result2}")
 
     # Check conversation history
