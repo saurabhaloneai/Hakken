@@ -46,15 +46,36 @@ Return ONLY a JSON object with this exact structure:
 
 Make steps specific and actionable. Each step should build toward the final objective."""
 
+        import time
+        import random
+        from anthropic import APIError
+        
+        # Retry logic for API calls
+        max_retries = 3
+        base_delay = 1  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                # Use higher max_tokens for Sonnet 4, lower for older models
+                max_tokens = 8000 if "sonnet-4" in self.agent.model else 4000
+                response = self.agent.client.messages.create(
+                    model=self.agent.model,
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": planning_prompt}]
+                )
+                break  # Success, exit retry loop
+            except APIError as e:
+                if attempt == max_retries - 1:  # Last attempt
+                    print(f"API error after {max_retries} attempts: {e}")
+                    raise
+                
+                # Exponential backoff with jitter
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                print(f"API error (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {delay:.1f}s...")
+                time.sleep(delay)
+        
+        # Process the successful response
         try:
-            # Use higher max_tokens for Sonnet 4, lower for older models
-            max_tokens = 8000 if "sonnet-4" in self.agent.model else 4000
-            response = self.agent.client.messages.create(
-                model=self.agent.model,
-                max_tokens=max_tokens,
-                messages=[{"role": "user", "content": planning_prompt}]
-            )
-            
             plan_text = response.content[0].text
             # Extract JSON from response
             start_idx = plan_text.find('{')

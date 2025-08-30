@@ -54,8 +54,7 @@ class DeepAgent:
         # Register custom sub-agents
         if subagents:
             for sa_config in subagents:
-                config = SubAgentConfig(**sa_config)
-                self.subagent_manager.register_subagent(config)
+                self.subagent_manager.register_subagent(sa_config)
         
         # Register tools
         self._register_builtin_tools()
@@ -199,34 +198,8 @@ ERROR HANDLING PRINCIPLE: When tools fail or return errors, keep the error infor
             # IMPROVEMENT 4: Compress large outputs if needed
             compress_large_outputs(state)
         
-        # Final synthesis using appropriate sub-agent
-        final_context = {
-            "objective": plan.objective,
-            "completed_steps": len(plan.steps),
-            "step_outputs": [s.actual_output for s in plan.steps if s.actual_output],
-            "all_files": list(state.files.keys())
-        }
-        
-        # Try to find a report/writing sub-agent, otherwise use general
-        if "report-agent" in self.subagent_manager.subagents:
-            final_output = self.subagent_manager.call_subagent(
-                "report-agent",
-                f"Create comprehensive final report for: {plan.objective}",
-                final_context
-            )
-        elif self.subagent_manager.subagents:
-            # Use first available sub-agent
-            subagent_name = list(self.subagent_manager.subagents.keys())[0]
-            final_output = self.subagent_manager.call_subagent(
-                subagent_name,
-                f"Synthesize final output for: {plan.objective}",
-                final_context
-            )
-        else:
-            final_output = "Plan execution completed. Check output files for results."
-        
-        state.messages.append(Message(role="assistant", content="Task completed. Final output generated."))
-        state.files["final_output.md"] = final_output
+        # Plan execution completed - just notify
+        state.messages.append(Message(role="assistant", content="Plan execution completed. Check output files for results."))
     
     def _execute_with_delegation(self, state, task):
         # For simple tasks, determine if delegation would help

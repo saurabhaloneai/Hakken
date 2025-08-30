@@ -33,13 +33,32 @@ Execute this task using your specialized capabilities. Be focused and thorough."
             {"role": "user", "content": task}
         ]
         
-        response = self.parent.client.messages.create(
-            model=self.parent.model,
-            max_tokens=8000,
-            system=full_prompt,
-            messages=messages,
-            tools=available_tools
-        )
+        import time
+        import random
+        from anthropic import APIError
+        
+        # Retry logic for API calls
+        max_retries = 3
+        base_delay = 1
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.parent.client.messages.create(
+                    model=self.parent.model,
+                    max_tokens=8000,
+                    system=full_prompt,
+                    messages=messages,
+                    tools=available_tools
+                )
+                break
+            except APIError as e:
+                if attempt == max_retries - 1:
+                    print(f"Subagent API error after {max_retries} attempts: {e}")
+                    raise
+                
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                print(f"Subagent API error (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {delay:.1f}s...")
+                time.sleep(delay)
         
         # Process response and tool calls
         return self._process_subagent_response(response, state=context)

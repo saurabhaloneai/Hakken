@@ -1,5 +1,5 @@
 """
-Example usage of the modularized DeepAgent system with Tavily search integration.
+Single deep research task using the modularized DeepAgent system with Tavily search.
 """
 
 import os
@@ -54,7 +54,7 @@ def web_scrape(url: str) -> str:
     except Exception as e:
         return f"Extraction failed: {str(e)}"
 
-# Sub-agent configurations with Tavily integration
+# Sub-agent configurations
 research_agent = SubAgentConfig(
     name="research-agent",
     description="Specialized in web research and data gathering using AI-powered search",
@@ -82,7 +82,7 @@ report_agent = SubAgentConfig(
     tools=["read_file", "write_file", "save_to_disk"]
 )
 
-# Create agent with Tavily tools and specialized sub-agents
+# Create the deep research agent
 agent = create_deep_agent(
     tools=[tavily_search, web_scrape],
     instructions="""You are a comprehensive research and analysis agent with access to 
@@ -93,16 +93,15 @@ agent = create_deep_agent(
     model="claude-sonnet-4-20250514"
 )
 
-# Example usage scenarios
-def example_comprehensive_research():
-    """Example: Complex research task that will use planning and sub-agents."""
+def deep_research(research_topic: str):
+    """Perform single comprehensive deep research on any topic."""
     input_data = {
         "messages": [
             {
                 "role": "user", 
-                "content": """Research and analyze the current state of renewable energy technology, 
-                focusing on solar, wind, and battery storage. Compare costs, efficiency trends, 
-                and market adoption. Create a comprehensive report with recommendations."""
+                "content": f"""Research and analyze {research_topic}. 
+                Conduct thorough research, analyze the data, and create a comprehensive report 
+                with key findings, trends, and actionable insights."""
             }
         ],
         "files": {}
@@ -110,43 +109,9 @@ def example_comprehensive_research():
     
     result = agent.invoke(input_data)
     return result
-
-def example_quick_search():
-    """Example: Simple search task."""
-    input_data = {
-        "messages": [
-            {
-                "role": "user",
-                "content": "What are the latest developments in quantum computing in 2024?"
-            }
-        ],
-        "files": {}
-    }
-    
-    result = agent.invoke(input_data)
-    return result
-
-def example_with_follow_up():
-    """Example: Multi-turn conversation with follow-up analysis."""
-    
-    # First query
-    result1 = agent.invoke({
-        "messages": [{"role": "user", "content": "Search for recent AI safety research papers"}],
-        "files": {}
-    })
-    
-    # Follow-up with previous context
-    result2 = agent.invoke({
-        "messages": result1["messages"] + [
-            {"role": "user", "content": "Now analyze the key themes and create a summary of the most important findings"}
-        ],
-        "files": result1["files"]
-    })
-    
-    return result2
 
 if __name__ == "__main__":
-    print("=== DeepAgent with Tavily Integration ===\n")
+    print("=== Single Deep Research with DeepAgent ===\n")
     
     # Check API keys
     if not os.getenv("ANTHROPIC_API_KEY"):
@@ -157,8 +122,11 @@ if __name__ == "__main__":
         print("⚠️  Please set TAVILY_API_KEY environment variable")
         exit(1)
     
-    print("Running comprehensive research example...")
-    result = example_comprehensive_research()
+    # Define your research topic here
+    RESEARCH_TOPIC = "the current state of renewable energy technology, focusing on solar, wind, and battery storage costs, efficiency trends, and market adoption"
+    
+    print(f"🔍 Starting deep research on: {RESEARCH_TOPIC}")
+    result = deep_research(RESEARCH_TOPIC)
     
     print("\n📁 Generated files:")
     for filename in result["files"].keys():
@@ -166,11 +134,13 @@ if __name__ == "__main__":
         print(f"  - {filename} ({size:,} chars)")
     
     print(f"\n💬 Total messages: {len(result['messages'])}")
-    print(f"🏁 Final message: {result['messages'][-1]['content'][:200]}...")
+    print(f"🏁 Final result: {result['messages'][-1]['content'][:200]}...")
     
-    # Save key files to disk if they exist
+    # Save the main report
     if "final_output.md" in result["files"]:
         os.makedirs("output", exist_ok=True)
         with open("output/research_report.md", "w") as f:
             f.write(result["files"]["final_output.md"])
         print("\n💾 Report saved to output/research_report.md")
+    
+    print("\n✅ Deep research completed!")

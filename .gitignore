@@ -6,6 +6,8 @@ __pycache__/
 .vscode
 .DS_Store
 # C extensions
+pyproject.toml.bak
+hakken/__init__.py.bak
 *.so
 .env
 # Distribution / packaging
