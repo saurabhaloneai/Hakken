@@ -41,52 +41,15 @@ pip install hakken
 
 ## quick start
 
-```python
-from hakken import DeepAgent
-
-# basic agent
-agent = DeepAgent(api_key="your-anthropic-key")
-
-# with custom tools
-def my_tool(data: str) -> str:
-    """process some data"""
-    return f"processed: {data}"
-
-agent = DeepAgent(
-    tools=[my_tool],
-    instructions="you are a research assistant",
-    api_key="your-key"
-)
-
-# run a task
-result = agent.invoke({
-    "messages": [{"role": "user", "content": "research renewable energy trends"}]
-})
-```
-
-## with sub-agents
-
-```python
-subagents = [
-    {
-        "name": "research-agent",
-        "description": "specialized in data research and gathering",
-        "prompt": "you are a research specialist. gather comprehensive data.",
-        "tools": ["web_search", "write_file"]
-    },
-    {
-        "name": "analysis-agent", 
-        "description": "expert in data analysis and insights",
-        "prompt": "you analyze data and provide insights.",
-        "tools": ["read_file", "write_file"]
-    }
-]
-
-agent = DeepAgent(
-    subagents=subagents,
-    api_key="your-key"
-)
-```
+```agent = create_deep_agent(
+    tools=[tavily_search, web_scrape],
+    instructions="""You are a comprehensive research and analysis agent with access to 
+    advanced web search capabilities. Use your planning system to break down complex tasks,
+    delegate to specialized sub-agents, and create thorough, well-researched outputs.""",
+    subagents=[research_agent, analysis_agent, report_agent],
+    api_key=os.getenv("ANTHROPIC_API_KEY"),
+    model="claude-sonnet-4-20250514"
+)```
 
 ## how it works
 
