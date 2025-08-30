@@ -1,40 +1,157 @@
-## hakken : deep agent 
+# hakken
 
-> to add hakken pakage 
+smart ai agent with planning and delegation
+
+## what is hakken
+
+hakken is an  ai agent that can break down complex tasks into steps, use tools, and have specialized sub-agents. it handles research, analysis, file management, and multi-step workflows.
+
+## features
+
+- automatic task planning for complex work
+- tool integration (file ops, web search, custom tools)
+- sub-agent delegation for specialized tasks
+- persistent file system with auto-save to disk
+- memory management and context optimization
+- error handling with retry logic
+
+## installation
+
+from source (development):
+
 ```bash
-# backup current pyproject.toml (if present), replace with a valid one, install editable, and verify import
-cp pyproject.toml pyproject.toml.bak 2>/dev/null || true
+git clone <your-repo-url>
+cd hakken
+pip install -e .
+```
 
-cat > pyproject.toml <<'EOF'
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+or with uv:
 
-[project]
-name = "hakken"
-version = "0.1.0"
-description = "Deep Agent framework"
-readme = "README.md"
-requires-python = ">=3.11"
-dependencies = [
-    "anthropic>=0.64.0",
-    "python-dotenv>=0.9.9",
-    "setuptools>=80.9.0",
-    "tavily-python>=0.7.11",
+```bash
+git clone <your-repo-url>
+cd hakken  
+uv pip install -e .
+```
+
+for production (when published):
+
+```bash
+pip install hakken
+```
+
+## quick start
+
+```python
+from hakken import DeepAgent
+
+# basic agent
+agent = DeepAgent(api_key="your-anthropic-key")
+
+# with custom tools
+def my_tool(data: str) -> str:
+    """process some data"""
+    return f"processed: {data}"
+
+agent = DeepAgent(
+    tools=[my_tool],
+    instructions="you are a research assistant",
+    api_key="your-key"
+)
+
+# run a task
+result = agent.invoke({
+    "messages": [{"role": "user", "content": "research renewable energy trends"}]
+})
+```
+
+## with sub-agents
+
+```python
+subagents = [
+    {
+        "name": "research-agent",
+        "description": "specialized in data research and gathering",
+        "prompt": "you are a research specialist. gather comprehensive data.",
+        "tools": ["web_search", "write_file"]
+    },
+    {
+        "name": "analysis-agent", 
+        "description": "expert in data analysis and insights",
+        "prompt": "you analyze data and provide insights.",
+        "tools": ["read_file", "write_file"]
+    }
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-EOF
-
-pip3 install -e . && python3 - <<'PY'
-try:
-    import hakken
-    print("OK —", getattr(hakken, "__file__", "(no __file__)"))
-except Exception as e:
-    import traceback, sys
-    print("IMPORT FAILED:", e, file=sys.stderr)
-    traceback.print_exc()
-    sys.exit(1)
-PY
+agent = DeepAgent(
+    subagents=subagents,
+    api_key="your-key"
+)
 ```
+
+## how it works
+
+1. **planning** - automatically creates step-by-step plans for complex tasks
+2. **execution** - runs each step using tools or delegates to sub-agents
+3. **file system** - saves all outputs to organized folders on disk
+4. **delegation** - routes specialized work to appropriate sub-agents
+
+## built-in tools
+
+- `plan_task` - create execution plans
+- `write_file` - save files (auto-saves to disk)
+- `read_file` - read files from memory
+- `save_all_files` - batch save everything to disk
+- `call_subagent` - delegate to sub-agents
+- `ls` - list files
+- `get_disk_status` - check file sync status
+
+## file organization
+
+files are automatically saved to organized folders:
+
+```
+deep_research_out/
+├── reports/     # final outputs, reports
+├── steps/       # step-by-step results  
+├── plans/       # execution plans
+├── sources/     # source materials
+└── errors/      # error logs
+```
+
+## requirements
+
+- python 3.8+
+- anthropic api key
+- anthropic python library
+
+## api key setup
+
+set your anthropic api key:
+
+```bash
+export ANTHROPIC_API_KEY="your-key-here"
+```
+
+for web search functionality (optional):
+
+```bash
+export TAVILY_API_KEY="your-tavily-key"
+```
+
+or pass keys directly:
+
+```python
+agent = DeepAgent(api_key="your-anthropic-key")
+```
+
+get api keys:
+- anthropic: https://console.anthropic.com/
+- tavily (for web search): https://app.tavily.com/
+
+## examples
+
+check the examples/ folder for complete demos including research workflows, analysis tasks, and custom tool integration.
+
+## license
+
+mit
