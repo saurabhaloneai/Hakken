@@ -3,6 +3,8 @@ __pycache__/
 *.py[codz]
 *$py.class
 .python-version
+.vscode
+.DS_Store
 # C extensions
 *.so
 .env
