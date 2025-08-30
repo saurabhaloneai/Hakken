@@ -19,24 +19,12 @@ hakken is an  ai agent that can break down complex tasks into steps, use tools, 
 
 from source (development):
 
-```bash
-git clone <your-repo-url>
-cd hakken
-pip install -e .
-```
-
-or with uv:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/saurabhaloneai/Hakken.git
 cd hakken  
+uv sync
 uv pip install -e .
-```
-
-for production (when published):
-
-```bash
-pip install hakken
 ```
 
 ## quick start
