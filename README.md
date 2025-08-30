@@ -41,7 +41,8 @@ pip install hakken
 
 ## quick start
 
-```agent = create_deep_agent(
+```python
+agent = create_deep_agent(
     tools=[tavily_search, web_scrape],
     instructions="""You are a comprehensive research and analysis agent with access to 
     advanced web search capabilities. Use your planning system to break down complex tasks,
@@ -49,7 +50,8 @@ pip install hakken
     subagents=[research_agent, analysis_agent, report_agent],
     api_key=os.getenv("ANTHROPIC_API_KEY"),
     model="claude-sonnet-4-20250514"
-)```
+
+```
 
 ## how it works
 
