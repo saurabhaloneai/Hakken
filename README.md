@@ -49,7 +49,7 @@ agent = create_deep_agent(
     delegate to specialized sub-agents, and create thorough, well-researched outputs.""",
     subagents=[research_agent, analysis_agent, report_agent],
     api_key=os.getenv("ANTHROPIC_API_KEY"),
-    model="claude-sonnet-4-20250514"
+    model="claude-sonnet-4-20250514")
 
 ```
 
