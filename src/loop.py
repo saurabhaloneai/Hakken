@@ -260,7 +260,7 @@ def create_agent(
     max_iterations: int = 25,
     memory: Optional[ConversationMemory] = None
 ):
-    """Create an agent with tool-use capabilities."""
+   
     tools_by_name, tool_schemas = prepare_tools(tools)
     
     agent = Agent(
