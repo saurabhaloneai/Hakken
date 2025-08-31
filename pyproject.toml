@@ -1,7 +1,7 @@
 [project]
 name = "hakken"
 version = "0.1.0"
-description = "Add your description here"
+description = "hakken: deep research agent"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
