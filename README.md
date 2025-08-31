@@ -1,20 +1,28 @@
 # hakken 
 
 > [!IMPORTANT] 
-> hakken is a deep research agent which is capable of planning tool, subagent, creating todo list and file system.
+> hakken hakken is a deep research agent build from scratch using only python.
+> which is capable of planning tool, subagent, creating todo list and file system.
 
 
 ## how to use 
 
 ```bash 
-git clone repo 
+git clone https://github.com/saurabhaloneai/Hakken.git
 ```
-## yeah u need uv 
+## yeah you need uv 
 
 ```bash
 uv sync 
 ```
-## run the deeo research agent 
+## u need two api-keys 
+
+```bash 
+export TAVILY_API_KEY="here-key"
+export ANTHROPIC_API_KEY="here-key"
+```
+
+## run the deep research agent 
 
 ```python
 ## this is file content some prompt and subagent which define the out deep research agent
