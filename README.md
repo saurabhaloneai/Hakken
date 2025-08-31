@@ -39,7 +39,7 @@ uv run research_agent.py
 
 ## references
 
-> this project is basically copy of deep-agent build by langchain people but only change i am not using any library only python.
+> this project is basically copy of deep-agent build by langchain people(thanks <3) but only change is i am not using any library only python.
 [deep-agent](https://github.com/langchain-ai/deepagents/tree/master)
 
 
