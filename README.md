@@ -29,16 +29,16 @@ export ANTHROPIC_API_KEY="here-key"
 uv run research_agent.py
 ```
 
+## ref 
 
-
-
-
+> this project is basically copy of deep-agent build by langchain people but only change i am not using any library only python.
+1. [deep-agent](https://github.com/langchain-ai/deepagents/tree/master)
 
 
 
 >[!NOTE] 
-> this is not a package i started with i want to package out of it but there are already great pacakge out there like deep-agent.
+> this is not a package i started with that i want to build a package out of this but there are already great pacakge out there like deep-agent so i skip the idea.
 >
-> this project is only for my leading purposes if it help then that great. 
+> this project is only for my learning purposes if it help you then that great else thank you! ... 
 
 

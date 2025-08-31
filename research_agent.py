@@ -1,21 +1,19 @@
 #### Hakken ### 
-
-
 import os
 from typing import Literal
 from tavily import TavilyClient
 from .src.deep_agent import create_deep_agent, SubAgent
 
-# Initialize the Tavily client
+# Tavily client
 tavily_client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
 
+#web search
 def internet_search(
     query: str,
     max_results: int = 3,
     topic: Literal["general", "news", "finance"] = "general",
     include_raw_content: bool = False,
 ):
-    """Run a web search"""
     search_docs = tavily_client.search(
         query,
         max_results=max_results,
@@ -24,7 +22,7 @@ def internet_search(
     )
     return search_docs
 
-# MANDATORY WORKFLOW INSTRUCTIONS
+
 research_instructions = """You are a research agent with MANDATORY todo workflow.
 
 🚨 ABSOLUTE FIRST ACTION: Call write_todos with these exact todos:
