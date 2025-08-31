@@ -19,7 +19,6 @@ class SubAgent(TypedDict):
     model: NotRequired[Any]
 
 def write_todos(todos: List[Todo]) -> str:
-    """Write todos to track tasks. Use VERY frequently for planning."""
     with open("todos.txt", "w") as f:
         for todo in todos:
             f.write(f"[{todo['status']}] {todo['content']}\n")
@@ -30,14 +29,12 @@ def read_file(file_path: str, offset: int = 0, limit: int = 2000) -> str:
     with open(file_path, "r", encoding='utf-8') as f:
         lines = f.readlines()
     
-    if not lines:
-        return "System reminder: File exists but has empty contents"
+    
     
     start_idx = offset
     end_idx = min(start_idx + limit, len(lines))
     
-    if start_idx >= len(lines):
-        return f"Error: Line offset {offset} exceeds file length ({len(lines)} lines)"
+    
     
     result_lines = []
     for i in range(start_idx, end_idx):
@@ -50,19 +47,16 @@ def read_file(file_path: str, offset: int = 0, limit: int = 2000) -> str:
     return "\n".join(result_lines)
 
 def write_file(file_path: str, content: str) -> str:
-    """Write content to a file."""
+
     os.makedirs(os.path.dirname(file_path) if os.path.dirname(file_path) else ".", exist_ok=True)
     with open(file_path, "w", encoding='utf-8') as f:
         f.write(content)
     return f"Successfully wrote {len(content)} characters to '{file_path}'"
 
 def edit_file(file_path: str, old_string: str, new_string: str, replace_all: bool = False) -> str:
-    """Edit file by exact string replacement. Read file first before editing."""
+   
     with open(file_path, "r", encoding='utf-8') as f:
         content = f.read()
-    
-    if old_string not in content:
-        return f"Error: String not found in file: '{old_string[:100]}...'"
     
     if not replace_all:
         occurrences = content.count(old_string)
@@ -72,10 +66,10 @@ def edit_file(file_path: str, old_string: str, new_string: str, replace_all: boo
     if replace_all:
         new_content = content.replace(old_string, new_string)
         count = content.count(old_string)
-        result_msg = f"Successfully replaced {count} instance(s) in '{file_path}'"
+        result_msg = f"successfully replaced {count} instance(s) in '{file_path}'"
     else:
         new_content = content.replace(old_string, new_string, 1)
-        result_msg = f"Successfully replaced string in '{file_path}'"
+        result_msg = f"successfully replaced string in '{file_path}'"
     
     with open(file_path, "w", encoding='utf-8') as f:
         f.write(new_content)
@@ -83,14 +77,14 @@ def edit_file(file_path: str, old_string: str, new_string: str, replace_all: boo
     return result_msg
 
 def ls() -> str:
-    """List all files in current directory."""
+    
     files = os.listdir(".")
     if not files:
         return "Directory is empty"
     return "\n".join(sorted(files))
 
 def create_task_tool(tools: List, instructions: str, subagents: List[SubAgent], model: Any):
-    """Create task delegation tool exactly like deepagents."""
+    
     
     from loop import create_agent, Tool
     
@@ -132,7 +126,6 @@ def create_task_tool(tools: List, instructions: str, subagents: List[SubAgent], 
     description = TASK_DESCRIPTION_PREFIX.format(other_agents="\n".join(other_agents)) + TASK_DESCRIPTION_SUFFIX
     
     def task(description: str, subagent_type: str) -> str:
-        """Launch agent for autonomous task execution."""
         if subagent_type not in agents:
             available = list(agents.keys())
             return f"Error: agent type '{subagent_type}' not found. Available types: {available}"
