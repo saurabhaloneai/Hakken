@@ -69,8 +69,8 @@ The agent will start an interactive conversation where you can ask questions and
 **Important:** Make sure your `.env` file is properly configured before running hakken!
 
 
-## Requirements
+## todo 
 
-- Python 3.8+
-- API key for OpenAI or OpenRouter
-- Internet connection for API calls
+[ ] add the human in loop 
+[ ] improve the ui 
+[ ] smart context manager 
