@@ -7,7 +7,7 @@ def cli():
         asyncio.run(agent.start_conversation())
     except (KeyboardInterrupt, asyncio.CancelledError):
         # Graceful exit on Ctrl+C without showing traceback
-        print("\n\nGoodbye! 👋")
+        
         exit(0)
     except Exception as e:
         print(f"\nAn error occurred: {e}")

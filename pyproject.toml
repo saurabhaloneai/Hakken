@@ -29,7 +29,6 @@ dependencies = [
     "python-dotenv>=0.9.9",
     "openai>=1.106.0",
     "rich>=14.1.0",
-    
 ]
 
 [tool.setuptools.packages.find]

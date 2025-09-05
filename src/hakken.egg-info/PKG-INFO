@@ -1,0 +1,190 @@
+Metadata-Version: 2.4
+Name: hakken
+Version: 0.1.0
+Summary: a agent which need too much context
+Author-email: Saurabh <your-email@example.com>
+License: MIT
+Keywords: ai,agent,conversation,cli
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: python-dotenv>=0.9.9
+Requires-Dist: openai>=1.106.0
+Requires-Dist: rich>=14.1.0
+Dynamic: license-file
+
+# Hakken - Component-Wise AI Agent
+
+A clean, component-based reimplementation of the Quick Star CLI agent system from Chapter 7, featuring proper dependency injection and modular architecture.
+
+## Architecture Overview
+
+### 🏗️ Component-Based Design
+
+Unlike the original singleton-based approach, Hakken uses **clean component separation** with **dependency injection**:
+
+```
+📦 hakken/src/
+├── 🤖 agent/           # Main conversation coordination
+├── 🌐 client/          # API client components  
+├── 📚 history/         # Conversation history management
+├── 💬 interface/       # User interface components
+├── 🛠️ tools/           # Tool implementations
+├── 💭 prompt/          # Prompt management
+└── 📄 main.py          # Entry point
+```
+
+### 🔄 Key Improvements
+
+#### ✅ **Component-Wise Benefits**
+- **Testable**: Each component can be tested independently
+- **Maintainable**: Clear separation of responsibilities  
+- **Readable**: Easy to understand what each component does
+- **Flexible**: Components can be swapped or extended easily
+- **No Hidden State**: All dependencies are explicit
+
+#### ❌ **Original Singleton Problems Fixed**
+- ~~Hard to test~~ → **Easy to test with dependency injection**
+- ~~Hidden dependencies~~ → **Explicit component interfaces**
+- ~~Tight coupling~~ → **Loose coupling through interfaces**
+- ~~Global state~~ → **Clean component state management**
+
+## 🚀 Installation
+
+```bash
+cd hakken
+pip install -e .
+```
+
+## ⚙️ Configuration
+
+Create `.env` file in project root:
+```bash
+OPENAI_API_KEY=your_api_key_here
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_MODEL=anthropic/claude-sonnet-4
+MODEL_MAX_TOKENS=200
+COMPRESS_THRESHOLD=0.8
+```
+
+## 🏃‍♂️ Usage
+
+```bash
+hakken
+```
+
+## 📋 Component Details
+
+### 🤖 Agent (`agent/conversation_agent.py`)
+- **Main coordinator** for all components
+- **Clean dependency injection** - no singletons
+- **Exact same functionality** as Chapter 7 but organized better
+
+### 🌐 API Client (`client/openai_client.py`) 
+- **Configuration-driven** OpenAI client
+- **Cost tracking** and **streaming support**
+- **Environment-based configuration**
+
+### 📚 History Manager (`history/conversation_history.py`)
+- **Conversation history** with **auto-compression**
+- **Token usage tracking** and **context window management**
+- **Message cropping** capabilities
+
+### 💬 User Interface (`interface/user_interface.py`)
+- **Clean separation** of input and display
+- **Rich formatting** with streaming support
+- **Modular components**: `InputHandler` + `DisplayManager`
+
+### 🛠️ Tools (`tools/`)
+- **`ToolInterface`**: Clean base interface for all tools
+- **`ToolRegistry`**: Manages tool instances without singletons
+- **Four main tools**:
+  - `CommandRunner`: Execute shell commands
+  - `TodoWriteManager`: Task management
+  - `ContextCropper`: History management
+  - `TaskDelegator`: Sub-agent delegation
+
+### 💭 Prompt Manager (`prompt/prompt_manager.py`)
+- **Environment collection** and **system rules**
+- **Modular prompt building** with clean interfaces
+- **Tool-aware reminders**
+
+## 🔧 Key Features
+
+### ✨ **Same Functionality as Chapter 7**
+- ✅ Streaming conversations with token tracking
+- ✅ Tool calls with user approval
+- ✅ History compression and context management  
+- ✅ Sub-agent task delegation
+- ✅ Todo list management
+- ✅ Smart context cropping
+- ✅ Beautiful CLI interface
+
+### 🏗️ **Better Architecture**
+- ✅ **No Singletons** - Clean dependency injection
+- ✅ **Component Separation** - Each component has clear responsibility
+- ✅ **Testable Design** - Easy to unit test individual components
+- ✅ **Maintainable Code** - Easy to modify and extend
+- ✅ **Clear Dependencies** - No hidden coupling between components
+
+## 🆚 Comparison with Original
+
+| Aspect | Original (Chapter 7) | Hakken (Component-wise) |
+|--------|----------------------|-------------------------|
+| **Architecture** | Singleton-based | Component-based |
+| **Dependencies** | Hidden/Global | Explicit injection |
+| **Testing** | Difficult | Easy |
+| **Maintainability** | Complex | Simple |
+| **Code Clarity** | Scattered logic | Clear separation |
+| **Functionality** | ✅ Full features | ✅ **Exact same features** |
+
+## 🧪 Testing
+
+Each component can be tested independently:
+
+```python
+# Example: Testing API client
+from client.openai_client import APIClient, APIConfiguration
+
+config = APIConfiguration("test-key", "test-url", "test-model")
+client = APIClient(config)
+# Test client independently
+```
+
+## 🔮 Extensibility
+
+Adding new components is straightforward:
+
+```python
+# 1. Create new tool
+class MyNewTool(ToolInterface):
+    def get_tool_name(self): return "my_tool"
+    async def act(self, **kwargs): return "result"
+    # ... implement other methods
+
+# 2. Register in agent
+agent = ConversationAgent()
+agent.tool_registry.register_tool(MyNewTool())
+```
+
+## 📝 Summary
+
+**Hakken provides the exact same functionality as Chapter 7** but with a **much cleaner, more maintainable architecture**:
+
+- 🎯 **Same Features**: All tools, streaming, history management, sub-agents
+- 🏗️ **Better Design**: Component-based instead of singleton-based  
+- 🧪 **Testable**: Each component can be tested independently
+- 📖 **Readable**: Clear separation of concerns and dependencies
+- 🔧 **Maintainable**: Easy to modify and extend individual components
+
+Perfect for learning clean architecture patterns while maintaining full agent functionality!

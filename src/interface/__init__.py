@@ -1,10 +1,9 @@
 
-from .user_interface import UserInterface
-from .theme import UITheme
-from .responsive_config import ResponsiveConfig
+from .user_interface import UserInterface, SimpleUI, HakkenCodeUI, UIManager
 
 __all__ = [
     'UserInterface',
-    'UITheme', 
-    'ResponsiveConfig'
+    'SimpleUI',
+    'HakkenCodeUI',
+    'UIManager'
 ]

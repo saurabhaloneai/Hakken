@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional, Dict, List, Any
 from client.openai_client import APIClient, APIConfiguration
 from history.conversation_history import ConversationHistoryManager, HistoryConfiguration
-from interface.user_interface import UserInterface
+from interface.user_interface import HakkenCodeUI
 from tools.tool_interface import ToolRegistry
 from tools.command_runner import CommandRunner
 from tools.todo_writer import TodoWriteManager
@@ -34,7 +34,7 @@ class ConversationAgent:
         self.config = config or AgentConfiguration()
         
         self.api_client = APIClient(self.config.api_config)
-        self.ui_interface = UserInterface()
+        self.ui_interface = HakkenCodeUI()
       
         self.history_manager = ConversationHistoryManager(
             self.config.history_config, 
@@ -75,6 +75,9 @@ class ConversationAgent:
 
     async def start_conversation(self) -> None:
         try:
+            # Display welcome header with Rich formatting
+            self.ui_interface.display_welcome_header()
+            
             system_message = {
                 "role": "system", 
                 "content": [
@@ -85,7 +88,7 @@ class ConversationAgent:
             
             while True:
                 # Use the new chat interface instead of regular input
-                user_input = await self.ui_interface.get_chat_input("What would you like me to help you with?")
+                user_input = await self.ui_interface.get_user_input("What would you like me to help you with?")
                 user_message = {
                     "role": "user", 
                     "content": [
@@ -94,18 +97,19 @@ class ConversationAgent:
                 }
                 self.add_message(user_message)
                 
-                self.ui_interface.start_interrupt_mode()
-                self.ui_interface.add_interrupt_callback(self._handle_user_interrupt)
+                # Remove these interrupt-related calls since HakkenCodeUI doesn't use them
+                # self.ui_interface.start_interrupt_mode()
+                # self.ui_interface.add_interrupt_callback(self._handle_user_interrupt)
                 
                 await self._recursive_message_handling()
                 
         except KeyboardInterrupt:
-            self.ui_interface.stop_interrupt_mode()
+            # self.ui_interface.stop_interrupt_mode()
             self.ui_interface.console.print("\n● Conversation ended. Goodbye! 👋\n")
             return
         except Exception as e:
-            self.ui_interface.stop_interrupt_mode()
-            self.ui_interface.print_error(f"System error occurred: {e}")
+            # self.ui_interface.stop_interrupt_mode()
+            self.ui_interface.display_error(f"System error occurred: {e}")
             traceback.print_exc()
 
     async def start_task(self, task_system_prompt: str, user_input: str) -> str:
@@ -131,7 +135,7 @@ class ConversationAgent:
         try:
             await self._recursive_message_handling()
         except Exception as e:
-            self.ui_interface.print_error(f"System error occurred during running task: {e}")
+            self.ui_interface.display_error(f"System error occurred during running task: {e}")
             traceback.print_exc()
             sys.exit(1)
         
@@ -142,7 +146,8 @@ class ConversationAgent:
 
         self.history_manager.auto_messages_compression()
         
-        await self.ui_interface.check_for_interrupts()
+        # Comment out interrupt check since HakkenCodeUI doesn't use it
+        # await self.ui_interface.check_for_interrupts()
 
         request = {
             "messages": self._get_messages_with_cache_mark(),
@@ -162,13 +167,13 @@ class ConversationAgent:
             token_usage = None
             
             # Start streaming display (for real-time typing effect)
-            self.ui_interface.start_stream_display()
+            self.ui_interface.start_assistant_response()
             
             try:
                 for chunk in stream_generator:
                     if isinstance(chunk, str):
                         full_content += chunk
-                        self.ui_interface.print_streaming_content(chunk)
+                        self.ui_interface.stream_content(chunk)
                     elif hasattr(chunk, 'role') and chunk.role == 'assistant':
                         response_message = chunk
                         if hasattr(chunk, 'usage') and chunk.usage:
@@ -176,9 +181,9 @@ class ConversationAgent:
                     elif hasattr(chunk, 'usage') and chunk.usage:
                         token_usage = chunk.usage
             except Exception as stream_error:
-                self.ui_interface.print_error(f"Streaming error: {stream_error}")
+                self.ui_interface.display_error(f"Streaming error: {stream_error}")
             
-            self.ui_interface.stop_stream_display()
+            self.ui_interface.finish_assistant_response()
             
             # After streaming is complete, just ensure we have a response message
             # The content was already displayed during streaming, so no need to display again
@@ -192,28 +197,28 @@ class ConversationAgent:
                     response_message = self._create_simple_message("I apologize, but I didn't receive a complete response.")
                     # Only display if we didn't get any streaming content
                     if not full_content.strip():
-                        self.ui_interface.print_assistant_message(response_message.content, use_chat=True)
+                        self.ui_interface.display_assistant_message(response_message.content)
             elif not full_content:
                 # Only display if we don't have streaming content
-                self.ui_interface.print_assistant_message(response_message.content, use_chat=True)
+                self.ui_interface.display_assistant_message(response_message.content)
             
         except Exception as e:
-            self.ui_interface.print_error(f"Streaming response processing error: {e}")
-            self.ui_interface.print_info(f"Error type: {type(e).__name__}")
+            self.ui_interface.display_error(f"Streaming response processing error: {e}")
+            self.ui_interface.display_info(f"Error type: {type(e).__name__}")
             traceback.print_exc()
             
             try:
-                self.ui_interface.print_info("Trying non-streaming mode...")
+                self.ui_interface.display_info("Trying non-streaming mode...")
                 response_message, token_usage = self.api_client.get_completion(request)
-                self.ui_interface.print_assistant_message(response_message.content, use_chat=True)
+                self.ui_interface.display_assistant_message(response_message.content)
                 
                 if token_usage:
                     self.history_manager.update_token_usage(token_usage)
                     
             except Exception as fallback_error:
-                self.ui_interface.print_error(f"Non-streaming mode also failed: {fallback_error}")
+                self.ui_interface.display_error(f"Non-streaming mode also failed: {fallback_error}")
                 response_message = self._create_error_message(str(e))
-                self.ui_interface.print_assistant_message(response_message.content, use_chat=True)
+                self.ui_interface.display_assistant_message(response_message.content)
                 return
 
         if token_usage:
@@ -242,7 +247,7 @@ class ConversationAgent:
     def _print_context_window_and_total_cost(self) -> None:
         context_usage = self.history_manager.current_context_window
         total_cost = self.api_client.total_cost
-        self.ui_interface.display_context_info(context_usage, str(total_cost))
+        self.ui_interface.display_status(context_usage, str(total_cost))
 
     def _get_messages_with_cache_mark(self) -> List[Dict]:
         messages = self.history_manager.get_current_messages()
@@ -273,11 +278,11 @@ class ConversationAgent:
             
             if self.interrupt_manager.requires_approval(tool_call.function.name, args):
                 approval_content = f"Tool: {tool_call.function.name}, args: {args}"
-                options = self.interrupt_manager.get_approval_options(tool_call.function.name)
-                
-                action, modified_args, response = await self.ui_interface.wait_for_enhanced_approval(
-                    approval_content, tool_call.function.name, args, options
-                )
+                # Simplified approval for HakkenCodeUI
+                should_execute = await self.ui_interface.confirm_action(approval_content)
+                action = "accept" if should_execute else "ignore"
+                modified_args = args
+                response = ""
                 
                 if action == "accept":
                     should_execute = True
@@ -297,9 +302,11 @@ class ConversationAgent:
 
     async def _execute_tool(self, tool_call, args: Dict, is_last_tool: bool = False, user_response: str = "") -> None:
         tool_args = {k: v for k, v in args.items() if k != 'need_user_approve'}
-        self.ui_interface.show_preparing_tool(tool_call.function.name, tool_args)
+        # Show tool preparation info
+        self.ui_interface.display_info(f"Preparing to run tool: {tool_call.function.name}")
         
-        await self.ui_interface.check_for_interrupts()
+        # Comment out interrupt check
+        # await self.ui_interface.check_for_interrupts()
         
         if user_response:
             tool_args['user_instructions'] = user_response
@@ -307,25 +314,18 @@ class ConversationAgent:
         try:
             tool_response = await self.tool_registry.run_tool(tool_call.function.name, **tool_args)
             
-            await self.ui_interface.check_for_interrupts()
+            # Comment out interrupt check
+            # await self.ui_interface.check_for_interrupts()
             
-            self.ui_interface.show_tool_execution(
-                tool_call.function.name, 
-                tool_args, 
-                success=True, 
-                result=str(tool_response)
-            )
+            # Show success message
+            self.ui_interface.display_success(f"Tool {tool_call.function.name} completed successfully")
             response_content = json.dumps(tool_response)
             if user_response:
                 response_content += f" (User instructions: {user_response})"
             self._add_tool_response(tool_call, response_content, is_last_tool)
         except Exception as e:
-            self.ui_interface.show_tool_execution(
-                tool_call.function.name, 
-                tool_args, 
-                success=False, 
-                result=str(e)
-            )
+            # Show error message
+            self.ui_interface.display_error(f"Tool {tool_call.function.name} failed: {str(e)}")
             self._add_tool_response(tool_call, f"tool call failed, fail reason: {str(e)}", is_last_tool)
 
     def _add_tool_response(self, tool_call, content: str, is_last_tool: bool = False) -> None:
@@ -372,8 +372,8 @@ class ConversationAgent:
         self.add_message(interrupt_message)
         
         if "stop" in user_input.lower():
-            self.ui_interface.print_warning("Process will stop after current tool completes")
+            self.ui_interface.display_warning("Process will stop after current tool completes")
         elif "change" in user_input.lower() or "modify" in user_input.lower():
-            self.ui_interface.print_info("Instruction received - will be processed")
+            self.ui_interface.display_info("Instruction received - will be processed")
         else:
-            self.ui_interface.print_info("Input received - will be incorporated into the next response")
+            self.ui_interface.display_info("Input received - will be incorporated into the next response")
