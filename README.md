@@ -1,6 +1,6 @@
 # hakken
-
-An AI agent that needs a lot of context to provide intelligent assistance.
+> [!IMPORTANT]
+> An AI agent that needs a lot of context to provide intelligent assistance.
 
 ## Installation
 
