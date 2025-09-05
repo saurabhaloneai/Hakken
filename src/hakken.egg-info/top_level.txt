@@ -1,7 +1,0 @@
-agent
-client
-history
-interface
-memory
-prompt
-tools

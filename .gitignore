@@ -2,3 +2,5 @@
 __pycache__
 .env
 .DS_Store
+hakken.egg-info
+.venv
