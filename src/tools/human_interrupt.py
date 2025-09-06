@@ -35,6 +35,12 @@ class InterruptConfigManager:
                 allow_respond=True,
                 allow_edit=True,
                 allow_ignore=True
+            ),
+            "web_search": HumanInterruptConfig(
+                allow_accept=True,
+                allow_respond=True,
+                allow_edit=False,
+                allow_ignore=False
             )
         })
     
@@ -50,7 +56,7 @@ class InterruptConfigManager:
             return args.get('need_user_approve', False)
         
         return (args.get('need_user_approve', False) or 
-                tool_name in ['run_command', 'context_cropper'])
+                tool_name in ['run_command', 'context_cropper', 'web_search'])
     
     def get_approval_options(self, tool_name: str) -> Dict[str, bool]:
         config = self.get_config(tool_name)

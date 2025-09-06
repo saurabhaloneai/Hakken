@@ -19,20 +19,21 @@ class TestWebSearch:
         assert schema["type"] == "function"
         assert schema["function"]["name"] == "web_search"
         
-        # Check key parameters
+       
         params = schema["function"]["parameters"]["properties"]
         assert "query" in params
         assert "max_results" in params
+        assert "need_user_approve" in params
         assert params["query"]["type"] == "string"
         assert params["topic"]["enum"] == ["general", "news", "finance"]
+        assert params["need_user_approve"]["type"] == "boolean"
         
-        # Check required fields
         assert schema["function"]["parameters"]["required"] == ["query"]
     
     def test_status_without_dependencies(self, web_search):
         """Test status when dependencies are not available"""
         status = web_search.get_status()
-        # Should indicate unavailability since tavily isn't installed
+
         assert "not" in status.lower()
     
     @pytest.mark.asyncio
@@ -42,7 +43,6 @@ class TestWebSearch:
         
         assert result["status"] == "failed"
         assert "error" in result
-        # Should mention either package or api key issue
         assert any(term in result["error"] for term in ["tavily", "package", "api key"])
     
     @pytest.mark.asyncio
@@ -50,27 +50,24 @@ class TestWebSearch:
         """Test parameter validation with mocked client"""
         mock_client = Mock()
         mock_client.search.return_value = {"results": []}
-        
-        # Assign mock client directly
+ 
         web_search.client = mock_client
-        
-        # Test max_results clamping
-        await web_search.act("test", max_results=15)
+ 
+        await web_search.act("test", max_results=15, need_user_approve=False)
         call_args = mock_client.search.call_args
-        assert call_args.kwargs["max_results"] == 10  # Should be clamped
+        assert call_args.kwargs["max_results"] == 10  
         
         # Test min clamping
-        await web_search.act("test", max_results=0)
+        await web_search.act("test", max_results=0, need_user_approve=False)
         call_args = mock_client.search.call_args
-        assert call_args.kwargs["max_results"] == 1  # Should be clamped
+        assert call_args.kwargs["max_results"] == 1
 
 
 class TestWebSearchWithMockedClient:
-    """Test web search with mocked client for full functionality"""
-    
+
     @pytest.fixture
     def web_search_with_mock(self):
-        """Create web search with mock client"""
+
         mock_client = Mock()
         mock_client.search.return_value = {
             "results": [
@@ -89,34 +86,32 @@ class TestWebSearchWithMockedClient:
     
     @pytest.mark.asyncio
     async def test_successful_search(self, web_search_with_mock):
-        """Test successful search operation"""
+ 
         web_search, mock_client = web_search_with_mock
         
-        result = await web_search.act("Python tutorial")
+        result = await web_search.act("Python tutorial", need_user_approve=False)
         
         assert result["status"] == "success"
         assert result["query"] == "Python tutorial"
         assert result["total_results"] == 1
         assert len(result["results"]) == 1
-        
-        # Verify client was called correctly
+ 
         mock_client.search.assert_called_once()
         call_args = mock_client.search.call_args
         assert call_args.kwargs["query"] == "Python tutorial"
     
     @pytest.mark.asyncio
     async def test_search_with_options(self, web_search_with_mock):
-        """Test search with custom options"""
         web_search, mock_client = web_search_with_mock
         
         await web_search.act(
             query="news", 
             max_results=5,
             topic="news",
-            include_raw_content=True
+            include_raw_content=True,
+            need_user_approve=False
         )
-        
-        # Verify parameters were passed correctly
+
         call_args = mock_client.search.call_args
         assert call_args.kwargs["query"] == "news"
         assert call_args.kwargs["max_results"] == 5
@@ -125,11 +120,11 @@ class TestWebSearchWithMockedClient:
     
     @pytest.mark.asyncio
     async def test_api_error_handling(self, web_search_with_mock):
-        """Test handling of API errors"""
+   
         web_search, mock_client = web_search_with_mock
         mock_client.search.side_effect = Exception("API Error")
         
-        result = await web_search.act("test")
+        result = await web_search.act("test", need_user_approve=False)
         
         assert result["status"] == "failed"
         assert "web search failed" in result["error"]
@@ -137,11 +132,11 @@ class TestWebSearchWithMockedClient:
     
     @pytest.mark.asyncio
     async def test_empty_results(self, web_search_with_mock):
-        """Test handling of empty results"""
+       
         web_search, mock_client = web_search_with_mock
         mock_client.search.return_value = {"results": []}
         
-        result = await web_search.act("rare query")
+        result = await web_search.act("rare query", need_user_approve=False)
         
         assert result["status"] == "success"
         assert result["total_results"] == 0

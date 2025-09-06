@@ -63,6 +63,11 @@ class WebSearch(ToolInterface):
                             "type": "boolean",
                             "description": "Whether to include raw content from web pages (default: false)",
                             "default": False
+                        },
+                        "need_user_approve": {
+                            "type": "boolean",
+                            "description": "Whether to request user approval before performing web search (default: true)",
+                            "default": True
                         }
                     },
                     "required": ["query"]
@@ -81,7 +86,8 @@ class WebSearch(ToolInterface):
                  query: str, 
                  max_results: int = 5,
                  topic: Literal["general", "news", "finance"] = "general",
-                 include_raw_content: bool = False) -> Dict[str, Any]:
+                 include_raw_content: bool = False,
+                 need_user_approve: bool = True) -> Dict[str, Any]:
         """
         Perform web search using Tavily API
         
@@ -90,6 +96,7 @@ class WebSearch(ToolInterface):
             max_results: Number of results to return (1-10)
             topic: Search topic category 
             include_raw_content: Whether to include full page content
+            need_user_approve: Whether to request user approval (handled by agent)
             
         Returns:
             Dictionary containing search results and metadata
@@ -152,6 +159,8 @@ class WebSearch(ToolInterface):
         return """
 Search the web for real-time information using Tavily API for research and fact-checking.
 
+IMPORTANT: This tool requires user approval before executing web searches to ensure privacy and intentional usage.
+
 This tool provides access to current web information and is particularly useful when:
 - User asks about recent events, news, or current information
 - Discussing new technologies, frameworks, or libraries
@@ -179,6 +188,16 @@ Search Parameters:
    - Set to true when you need detailed information from sources
    - Use sparingly as it significantly increases response size
 
+5. need_user_approve (optional): Request user permission (default: true)
+   - Always set to true to respect user privacy
+   - Only set to false if user has explicitly granted blanket permission
+
+User Approval Requirements:
+- This tool ALWAYS requires user approval before performing web searches
+- The user will be prompted to confirm before any search is executed
+- User can approve, deny, or modify the search query
+- This ensures privacy and prevents unintended external requests
+
 When to Use Web Search:
 - User asks "what's new in..." or "latest version of..."
 - Discussing deprecated libraries and need current alternatives
@@ -188,6 +207,7 @@ When to Use Web Search:
 - User explicitly requests web search or research
 
 Best Practices:
+- Always explain why web search is needed before using this tool
 - Use specific, targeted queries for better results
 - Start with general topic, then narrow down if needed
 - Check result scores to identify most relevant sources
