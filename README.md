@@ -1,6 +1,10 @@
 # hakken
 > [!IMPORTANT]
-> An AI agent that needs a lot of context to provide intelligent assistance.
+> hakken is an ai agent which needs a lot of context to provide `good` intelligent assistance.
+> 
+> this is like a claude-code but `opensource` hehe and i have build this from scratch. 
+
+[img](assets/images/interface.png)
 
 ## agent capabilities
 
