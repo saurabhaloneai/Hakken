@@ -22,6 +22,41 @@
 >
 > `status` — cost tracking, status display
 
+
+## data flow 
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as hakken ui
+    participant AG as conversation_agent
+    participant HI as history_manager
+    participant PM as prompt_manager
+    participant AC as api_client (openai)
+    participant TR as tool_registry/tools
+
+    UI->>AG: user input
+    AG->>HI: add user message
+    AG->>PM: get system reminder (todo status)
+    AG->>HI: auto compress if needed
+    AG->>AC: chat.completions.create(messages, tools, tool_choice=auto, stream=true)
+    AC-->>AG: content deltas (stream)
+    AG-->>UI: stream chunks
+    AC-->>AG: final assistant message (+ optional tool_calls)
+    AG->>HI: add assistant message
+    alt has tool_calls
+      loop each tool_call
+        AG->>TR: run_tool(name, args)
+        TR-->>AG: tool result json
+        AG->>HI: add role=tool message (+ reminder on last)
+      end
+      AG->>AC: call llm again with updated messages
+    else no tool_calls
+      AG-->>UI: display status (context %, cost)
+    end
+```
+
+
 ## Installation
 
 ### Option 1: Global Install (Use from anywhere)
