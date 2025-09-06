@@ -305,6 +305,23 @@ class ConversationAgent:
             await self._recursive_message_handling(show_thinking=False)
         else:
             self._print_context_window_and_total_cost()
+            # If the assistant narrated an action but didn't call a tool, gently nudge to act
+            try:
+                last_msg = self.history_manager.get_current_messages()[-1]
+                last_content = last_msg.get("content", "") if isinstance(last_msg, dict) else ""
+                nudge_text = self._derive_action_nudge(str(last_content))
+                if nudge_text:
+                    nudge_message = {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": nudge_text}
+                        ]
+                    }
+                    self.add_message(nudge_message)
+                    await self._recursive_message_handling(show_thinking=True)
+                    return
+            except Exception:
+                pass
             # If there is a queued instruction and no tool run followed,
             # inject it as a follow-up user message to be handled immediately.
             pending_after = self._pending_user_instruction.strip() if isinstance(getattr(self, "_pending_user_instruction", ""), str) else ""
@@ -466,14 +483,68 @@ class ConversationAgent:
             user_response = pending_for_tools
             
             if self.interrupt_manager.requires_approval(tool_call.function.name, args):
-                approval_content = f"Tool: {tool_call.function.name}, args: {args}"
-                # Simplified approval for HakkenCodeUI
-                should_execute = await self.ui_interface.confirm_action(approval_content)
+                approval_content = self._format_approval_preview(tool_call.function.name, args)
+                approval_result = await self.ui_interface.confirm_action(approval_content)
+                if isinstance(approval_result, str):
+                    decision = approval_result.strip().lower()
+                    should_execute = decision in ("yes", "always")
+                    if decision == "always":
+                        try:
+                            self.interrupt_manager.set_always_allow(tool_call.function.name, args)
+                        except Exception:
+                            pass
+                else:
+                    should_execute = bool(approval_result)
 
             if should_execute:
                 await self._execute_tool(tool_call, args, is_last_tool, user_response)
             else:
                 self._add_tool_response(tool_call, f"Tool execution skipped: {user_response}", is_last_tool)
+
+    def _format_approval_preview(self, tool_name: str, args: Dict[str, Any]) -> str:
+        """Format a concise approval message with truncated/normalized args to avoid flooding the UI."""
+        try:
+            preview_args: Dict[str, Any] = {}
+            if tool_name == "cmd_runner":
+                cmd = args.get("command", "")
+                if isinstance(cmd, str):
+                    max_len = 180
+                    normalized = cmd.replace("\n", " ")
+                    if len(normalized) > max_len:
+                        normalized = normalized[:max_len].rstrip() + "…"
+                    preview_args["command"] = normalized
+                    preview_args["length"] = len(cmd)
+                else:
+                    preview_args["command"] = str(cmd)
+            else:
+                # generic truncation for other tools
+                for k, v in args.items():
+                    if isinstance(v, str):
+                        s = v.replace("\n", " ")
+                        preview_args[k] = (s[:140].rstrip() + "…") if len(s) > 140 else s
+                    else:
+                        preview_args[k] = v
+            return f"Tool: {tool_name}, args: {preview_args}"
+        except Exception:
+            return f"Tool: {tool_name}, args: {args}"
+
+    def _derive_action_nudge(self, assistant_text: str) -> Optional[str]:
+        """Heuristic nudge: when the assistant says it will act but provided no tool calls, ask it to execute.
+        Keeps wording short to preserve KV-cache stability.
+        """
+        text = assistant_text.lower()
+        if not text or len(text) > 4000:
+            return None
+        # common intents → direct tool hints
+        if "check the todo.md" in text or "check todo.md" in text:
+            return "use read_file to open 'todo.md' now, do not describe."
+        if "list" in text and ("directory" in text or "files" in text or "structure" in text):
+            return "use cmd_runner with 'ls -la' now, do not describe."
+        if "open" in text and ("file" in text or "." in text):
+            return "use read_file to open the stated file now, do not describe."
+        if "search" in text and "web" in text:
+            return "use web_search now, do not describe."
+        return None
 
     async def _execute_tool(self, tool_call, args: Dict, is_last_tool: bool = False, user_response: str = "") -> None:
         tool_args = {k: v for k, v in args.items() if k != 'need_user_approve'}

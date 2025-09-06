@@ -10,10 +10,9 @@ this doc explains, end-to-end, how user inputs, llm calls, tool executions, and 
    - ui shows the header (`HakkenCodeUI.display_welcome_header`).
 
 2. system prompt seed
-   - `PromptManager.get_system_prompt()` builds a system message from:
-     - fixed rules (`SystemRuleProvider.get_system_rule`), and
-     - live environment info (`EnvironmentCollector.collect_all`).
-   - the agent pushes this as the first message into history.
+   - `PromptManager.get_system_prompt()` returns a stable, cache-friendly system message from `SystemRuleProvider.get_system_rule`.
+   - volatile environment details (cwd, git, platform) are excluded from the static system prompt to preserve KV-cache.
+   - concise, stable environment info is appended later via reminders (see reminders below).
 
 3. user turns
    - ui collects input (`HakkenCodeUI.get_user_input`).
@@ -23,7 +22,7 @@ this doc explains, end-to-end, how user inputs, llm calls, tool executions, and 
    - `ConversationAgent._recursive_message_handling()`:
      - gathers messages from `ConversationHistoryManager.get_current_messages()`.
      - annotates the last content with cache hints when applicable (`_get_messages_with_cache_mark`).
-     - collects tool json-schemas via `ToolRegistry.get_tools_description()`.
+     - collects tool json-schemas via `ToolRegistry.get_tools_description()` (sorted deterministically by tool name with normalized key ordering to stabilize cache and costs).
      - computes safe output token cap (context budgeting).
      - builds the request:
        - `messages`: conversation history
@@ -52,7 +51,8 @@ this doc explains, end-to-end, how user inputs, llm calls, tool executions, and 
    - after tool execution, the agent immediately re-enters `_recursive_message_handling(show_thinking=False)` so the llm can read the tool results and continue; this repeats until there are no further tool calls.
 
 8. idle branch
-   - if there are no tool calls, the loop prints context/cost status and returns to wait for the next user input.
+   - if there are no tool calls, the loop prints context/cost status.
+   - if the assistant narrated an action (e.g., “i will list files”) but provided no tool calls, a small nudge message is injected (e.g., “use cmd_runner with 'ls -la' now”), and the loop immediately continues. this avoids “giving up” on narration-only outputs.
 
 
 ## how data reaches the llm
@@ -83,10 +83,9 @@ execution flow:
 notable tools:
 
 - `todo_write` (`src/tools/todo_writer.py`)
-  - validates and saves a list of todos in memory inside the tool instance.
+  - validates and saves a list of todos in memory and persists to `todo.md` at repo root (manus-style file-backed context).
   - updates the ui using `HakkenCodeUI.display_todos(...)`.
-  - exposes `get_status()` that returns the current todos as json.
-  - this status is injected into the reminder used after the last tool call in a batch, so the llm can keep todo state in mind.
+  - exposes `get_status()` that returns the current todos as json; this status is injected into reminders after tool batches.
 
 - `cmd_runner` (`src/tools/command_runner.py`)
   - executes shell commands (non-interactive) and returns stdout/stderr.
@@ -102,10 +101,10 @@ notable tools:
   - automatically included in reminder system for llm context
 
 - `web_search` (`src/tools/web_search.py`)
-  - real-time web search using tavily api for current information
-  - requires user approval before executing searches (privacy protection)
-  - supports different search topics (general, news, finance)
-  - includes raw content option for detailed research
+  - real-time web search using tavily api for current information.
+  - requires user approval before executing searches (privacy protection).
+  - supports different search topics (general, news, finance).
+  - saves long page contents to files under `artifacts/web_search/` and returns file paths (`content_path`, `raw_content_path`) to keep context small; inline payloads are truncated previews.
 
 - `grep_search` (`src/tools/grep_search.py`)
   - lightweight, bounded search across files.
@@ -120,7 +119,7 @@ notable tools:
   - spins a nested task using a specialized sub-agent prompt; internally calls `ConversationAgent.start_task(...)` which runs the same loop in an isolated mini-chat and returns the final text.
 
 
-## streaming, interrupts, and the loop
+## streaming, interrupts, approvals, and the loop
 
 - streaming
   - while the llm streams, the ui prints chunks (`HakkenCodeUI.stream_content`).
@@ -132,6 +131,11 @@ notable tools:
     - `/` (alone) switches to an inline instruction capture mode.
     - any other line is immediately treated as a new user message (prefixed with `[INTERRUPT]`).
   - `_handle_user_interrupt(...)` appends an extra `role=user` message and the agent recurses, letting the llm incorporate the instruction.
+
+- approvals
+  - approval panel supports arrow-key selection inside the box (↑/↓ + Enter) with options: `yes`, `no`, `always`.
+  - choosing `always` remembers approval: for `cmd_runner`, the exact command string is whitelisted for the session; for other tools, the entire tool is whitelisted.
+  - non-interactive sessions can use `HAKKEN_AUTO_APPROVE=1` or `HAKKEN_APPROVAL_DEFAULT=y`.
 
 - recursion and termination
   - after every assistant or tool turn, `_recursive_message_handling(...)` re-runs.
@@ -156,13 +160,18 @@ typical shapes inside `ConversationHistoryManager.messages_history[-1]`:
   - `{ "role": "tool", "tool_call_id": "...", "name": "<tool_name>", "content": [ {"type":"text", "text": "<json string>"}, {"type":"text", "text": "<reminder with todos>"}? ] }`
 
 
-## context budgeting and compression
+## context budgeting and compression (manus-inspired)
 
 - `_estimate_tokens(...)` approximates token counts for both messages and tool schemas.
 - `_compute_max_output_tokens(...)` caps the output so request + response fits the `OPENAI_CONTEXT_LIMIT`.
 - `ConversationHistoryManager.auto_messages_compression()` compresses when usage crosses `compress_threshold`:
   - compresses older turns while preserving the most recent user message(s), inserting a notice that prior content was compressed.
   - `smart_context_cropper` can also be invoked explicitly by the llm.
+
+- stable prefixes for caching (manus):
+  - system prompt is stable (no timestamps or volatile env) to maintain KV-cache hit rate.
+  - tool schemas are serialized deterministically.
+  - large observations (web pages) are offloaded to files and referenced by path.
 
 
 ## todo and memory updates (how they appear to the llm and user)
@@ -174,9 +183,9 @@ typical shapes inside `ConversationHistoryManager.messages_history[-1]`:
   - stores progress, decisions, and context to `.hakken/task_memory.jsonl` for persistence across sessions
   - enables future recall of important context and decisions made during complex tasks
 - after the last tool in a batch, `_add_tool_response` appends a reminder from `PromptManager.get_reminder()`:
-  - this reminder pulls both `TodoWriteManager.get_status()` and `TaskMemoryTool.get_status()` 
-  - embeds current todos and recent memory entry count into the tool message content
-  - the effect: the llm always has the latest todo state and memory context in-context for better continuity
+  - includes `TodoWriteManager.get_status()` and `TaskMemoryTool.get_status()`.
+  - adds a concise environment summary (cwd, git yes/no, platform) without timestamps.
+  - effect: the llm has fresh todo + memory + env context in the most recent window, improving attention and continuity.
 
 
 ## quick reference (files and responsibilities)

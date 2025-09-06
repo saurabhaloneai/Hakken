@@ -37,7 +37,7 @@ Most "AI assistants" stop at step 2. They'll tell you what to do, but you're stu
 
 ## The Architecture Deep Dive
 
-Here's the thing nobody tells you about building AI agents: it's not about the AI part, it's about the **message passing architecture**.
+Here's the thing nobody tells you about building AI agents: it's not about the AI part, it's about the **message passing architecture** — and about shaping context so it's fast and cheap. After living with this build, I pulled in several Manus-style context engineering tricks that shaved latency and stabilized behavior without touching the model.
 
 At its core, every AI agent is just a fancy message queue processor:
 
@@ -87,7 +87,7 @@ class ConversationHistoryManager:
         pass
 ```
 
-The key insight: **treat context window like RAM**. You have a limited budget, spend it wisely.
+The key insight: **treat context window like RAM**. You have a limited budget, spend it wisely. Better yet, push large state to the file system and pass references.
 
 ## Streaming: Making It Feel Alive
 
@@ -234,7 +234,7 @@ class ToolRegistry:
         return [tool.json_schema() for tool in self.tools.values()]
 ```
 
-This is basically the plugin architecture that VSCode uses, but for AI agents. Want to add git support? Write a tool. Need to run shell commands? Write a tool. The agent doesn't give a fuck about implementation details.
+This is basically the plugin architecture that VSCode uses, but for AI agents. Want to add git support? Write a tool. Need to run shell commands? Write a tool. The agent doesn't give a fuck about implementation details. To keep costs stable, tool schemas are serialized **deterministically** (sorted by tool name with normalized JSON key ordering), which improves KV-cache hit rate.
 
 ## The Recursive Loop: Where Shit Gets Real
 
@@ -267,7 +267,7 @@ async def _recursive_message_handling(self):
         # 5. Loop back - LLM will see tool results and continue
 ```
 
-This is essentially a fixed-point iteration: `f(messages) → (new_messages, tool_calls)` where convergence means `tool_calls = []`.
+This is essentially a fixed-point iteration: `f(messages) → (new_messages, tool_calls)` where convergence means `tool_calls = []`. If the assistant narrates an action (“I’ll check todo.md…”) but emits no tool call, the loop now nudges itself by injecting a tiny user hint (e.g., “use read_file to open 'todo.md' now”) and continues. Narration alone won’t stall the loop anymore.
 
 But here's the scary part: **what if it never converges?** What if your agent gets stuck in a loop, calling the same failing tool over and over? You need circuit breakers:
 
@@ -380,7 +380,7 @@ class TodoWriter(ToolInterface):
         return json.dumps({"todos": self.todos})
 ```
 
-The magic happens in the prompt system. After every tool execution, I inject a reminder that includes current todo status. The AI sees its own progress and can update accordingly.
+The magic happens in the prompt system. After every tool execution, I inject a reminder that includes current todo status and a concise environment summary. Also, todos persist to a **file-backed** `todo.md` at repo root (a Manus-style trick): the llm can recite a compact view in-context while detailed state lives on disk.
 
 It's like giving the AI a notepad that it can actually read and write.
 
@@ -433,14 +433,16 @@ class WebSearch(ToolInterface):
             topic="general"
         )
         
+        # large page content is written under artifacts/web_search and returned as file paths
         return {
             "query": query,
             "results": search_results,
-            "status": "success"
+            "status": "success",
+            "note": "long content saved to files; use read_file to load content_path/raw_content_path"
         }
 ```
 
-The beautiful part: approval happens automatically through the tool execution flow. The user gets prompted "Tool: web_search, args: {query: 'latest React features'}" and can approve, deny, or modify.
+The beautiful part: approval happens automatically through the tool execution flow. The user gets prompted with an **arrow-key** approval panel (↑/↓ + Enter) — choices: yes, no, always. “Always” remembers approval (per-command for `cmd_runner`, per-tool otherwise) for the session.
 
 Privacy-first by design. No surprise external requests.
 
@@ -455,7 +457,7 @@ Your system prompt is basically the constitution of your agent. Mine includes:
 3. **Behavior rules**: When to use todos, how to handle complex tasks  
 4. **Context awareness**: Current directory, git status, environment
 
-But here's the key insight: **make it dynamic**. I inject live environment info:
+But here's the key insight: **make it stable**. The system prompt no longer includes volatile environment details (like dates). Stable prefixes mean KV-cache hits and faster TTFT. A concise environment summary is injected later via reminders after tool batches.
 
 ```python
 def get_system_prompt(self):
@@ -581,7 +583,11 @@ def compress_context(self):
     return compressed
 ```
 
-The key insight: **preserve the edges, compress the middle**. System prompt and recent messages are sacred. Everything else is fair game.
+The key insight: **preserve the edges, compress the middle**. System prompt and recent messages are sacred. Everything else is fair game. Also:
+- Keep the system prefix stable (no timestamps),
+- Serialize tool schemas deterministically,
+- Offload large observations to files and pass paths,
+- Persist todos to disk (`todo.md`) and recite only a compact view in-context.
 
 ## The Real-World Problems (Or: What Actually Goes Wrong)
 

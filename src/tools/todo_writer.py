@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Any, Dict, List
 from .tool_interface import ToolInterface
 
@@ -18,7 +19,7 @@ class TodoWriteManager(ToolInterface):
         if not todos:
             return "No todos provided"
         
-        # Validate todos type
+       
         if not isinstance(todos, list):
             return f"Error: todos type is wrong. Expected list, got {type(todos).__name__}. todos = {todos}"
         
@@ -36,8 +37,20 @@ class TodoWriteManager(ToolInterface):
         
         self.todos = todos
 
+        # update ui state and display
         if self.ui_interface:
+            try:
+                self.ui_interface.update_todos(todos)
+            except Exception:
+                pass
             self.ui_interface.display_todos(todos)
+
+        # persist to repo root as todo.md (manus-style)
+        try:
+            self._persist_markdown()
+        except Exception:
+            # non-fatal; still return success for in-memory usage
+            pass
         
         return f"Successfully updated todo list with {len(todos)} todos"
 
@@ -94,6 +107,27 @@ class TodoWriteManager(ToolInterface):
         if not self.todos:
             return "No todos in memory - no todos have been added yet"
         return json.dumps({"todos": self.todos}, indent=2)
+
+    def _persist_markdown(self) -> None:
+        """Write a deterministic, human-readable todo.md at repo root."""
+        lines = ["# Project Tasks", ""]
+        for todo in self.todos:
+            status = todo.get("status", "pending")
+            content = todo.get("content", "").strip()
+            if status == "completed":
+                box = "[x]"
+                suffix = ""
+            elif status == "in_progress":
+                box = "[ ]"
+                suffix = " — in progress"
+            else:
+                box = "[ ]"
+                suffix = ""
+            lines.append(f"- {box} {content}{suffix}")
+        lines.append("")  # trailing newline
+        path = os.path.join(os.getcwd(), "todo.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
 
     def _tool_description(self) -> str:
         return """

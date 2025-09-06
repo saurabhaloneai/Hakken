@@ -10,7 +10,7 @@
 
 > `chat` — context awareness and message compression
 >
-> `todo` - it plan first ; create todo list and follow it. 
+> `todo` — it plan first ; create todo.md(persitant) list and follow it. 
 > 
 > `streaming` — real‑time interrupts (/stop or inline) ; interrupts to change the plan
 >

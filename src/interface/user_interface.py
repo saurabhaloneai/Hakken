@@ -4,12 +4,15 @@ import threading
 import queue
 from typing import Optional, List, Dict, Any
 from rich.console import Console
+from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
 from rich import box
 from rich.status import Status
 from dataclasses import dataclass
 from datetime import datetime
+import tty
+import termios
 
 
 @dataclass
@@ -324,8 +327,11 @@ class HakkenCodeUI:
             "toggle13", "arrow", "arrow2", "arrow3", "bouncingBar", "bouncingBall"
         ]
     
-    async def confirm_action(self, message: str) -> bool:
-        """user-friendly yes/no confirmation with non-interactive fallback"""
+    async def confirm_action(self, message: str) -> bool | str:
+        """user-friendly yes/no/always confirmation.
+        supports arrow-key selection inside the panel (↑/↓ + Enter). returns True/False or "always".
+        non-interactive environments fall back to env defaults or a simple prompt.
+        """
         try:
             # non-interactive fallback (e.g., running inside editor without a tty)
             if not sys.stdin or not sys.stdin.isatty():
@@ -337,45 +343,76 @@ class HakkenCodeUI:
                 self.display_info("auto-denying (non-interactive). set HAKKEN_AUTO_APPROVE=1 to allow.")
                 return False
 
-            # interactive prompt with clearer ui and choices
-            self.console.print()
-            title_text = Text()
-            title_text.append("approval required", style=f"bold {self.colors['orange']}")
-            content_text = Text()
-            content_text.append(message, style=self.colors['light_gray'])
-            panel = Panel(
-                content_text,
-                title=title_text,
-                title_align="left",
-                border_style=self.colors['border'],
-                box=box.ROUNDED,
-                padding=(0, 1),
-                width=80,
-            )
-            self.console.print(panel)
+            # interactive prompt with arrow-key selection inside the panel
+            # stop spinner to avoid overlap
+            if self._spinner_active:
+                try:
+                    self.stop_spinner()
+                except Exception:
+                    pass
 
-            # compute default from env
             default_yes = os.environ.get("HAKKEN_APPROVAL_DEFAULT", "").strip().lower() == "y" or \
                            os.environ.get("HAKKEN_AUTO_APPROVE", "").strip().lower() in ("1", "true", "yes", "y")
 
-            # show choices
-            self.console.print(Text().append("  1. yes", style=self.colors['white']))
-            self.console.print(Text().append("  2. no", style=self.colors['white']))
+            choices = ["yes", "no", "always"]
+            selected = 0 if default_yes else 1  # default selection aligns with env default
 
-            while True:
-                prompt_text = Text()
-                hint = "[Y/n]" if default_yes else "[y/N]"
-                prompt_text.append(f"approve? {hint}: ", style=self.colors['gray'])
-                self.console.print(prompt_text, end="")
+            def render_panel(sel: int) -> Panel:
+                body = Text()
+                body.append(message + "\n\n", style=self.colors['light_gray'])
+                body.append("use ↑/↓ to select, Enter to confirm.\n\n", style=self.colors['gray'])
+                for idx, label in enumerate(choices):
+                    prefix = "> " if idx == sel else "  "
+                    style = f"bold {self.colors['white']}" if idx == sel else self.colors['white']
+                    body.append(prefix + label + ("\n" if idx < len(choices)-1 else ""), style=style)
+                title_text = Text(); title_text.append("approval required", style=f"bold {self.colors['orange']}")
+                return Panel(
+                    body,
+                    title=title_text,
+                    title_align="left",
+                    border_style=self.colors['border'],
+                    box=box.ROUNDED,
+                    padding=(0, 1),
+                    width=80,
+                )
 
-                response = input("").strip().lower()
-                if response == "":
-                    return default_yes
-                if response in ("y", "yes", "1"):
-                    return True
-                if response in ("n", "no", "2"):
-                    return False
-                self.display_error("please enter y or n (or 1 or 2).")
+            fd = sys.stdin.fileno()
+            old_settings = termios.tcgetattr(fd)
+            try:
+                tty.setcbreak(fd)
+                with Live(render_panel(selected), console=self.console, refresh_per_second=30, transient=True) as live:
+                    while True:
+                        ch = sys.stdin.read(1)
+                        if ch == "\x1b":
+                            seq1 = sys.stdin.read(1)
+                            if seq1 == "[":
+                                seq2 = sys.stdin.read(1)
+                                if seq2 == "A":  # up
+                                    selected = (selected - 1) % len(choices)
+                                elif seq2 == "B":  # down
+                                    selected = (selected + 1) % len(choices)
+                                # ignore left/right
+                            live.update(render_panel(selected))
+                            continue
+                        if ch in ("\r", "\n"):
+                            break
+                        if ch.lower() in ("1", "y"):
+                            selected = 0; break
+                        if ch.lower() in ("2", "n"):
+                            selected = 1; break
+                        if ch.lower() in ("3", "a"):
+                            selected = 2; break
+                        # any other key: re-render unchanged
+                        live.update(render_panel(selected))
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+            result = choices[selected]
+            if result == "yes":
+                return True
+            if result == "no":
+                return False
+            return "always"
         except (KeyboardInterrupt, EOFError):
             return False
     

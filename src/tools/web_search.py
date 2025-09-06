@@ -1,4 +1,5 @@
 import os
+import re
 from typing import Dict, Any, Literal, Optional
 from .tool_interface import ToolInterface
 
@@ -82,6 +83,25 @@ class WebSearch(ToolInterface):
             return "tavily api key not configured - web search unavailable"
         return "ready - web search available"
 
+    def _ensure_dir(self, path: str) -> None:
+        try:
+            os.makedirs(path, exist_ok=True)
+        except Exception:
+            pass
+
+    def _sanitize(self, s: str) -> str:
+        s = s.strip().lower()
+        s = re.sub(r"[^a-z0-9]+", "-", s)
+        return s.strip("-") or "result"
+
+    def _save_text(self, base_dir: str, base_name: str, suffix: str, content: str) -> str:
+        self._ensure_dir(base_dir)
+        filename = f"{base_name}-{suffix}.txt"
+        path = os.path.join(base_dir, filename)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return path
+
     async def act(self, 
                  query: str, 
                  max_results: int = 5,
@@ -125,19 +145,38 @@ class WebSearch(ToolInterface):
                 topic=topic
             )
             
-            # Format the results
+            # Format the results (save large content to files)
+            artifact_dir = os.path.join(os.getcwd(), "artifacts", "web_search")
+            max_inline = 800  # keep context small; store long text on disk
+
             formatted_results = []
-            for result in search_results.get("results", []):
+            for idx, result in enumerate(search_results.get("results", []), 1):
+                title = result.get("title", "") or f"result-{idx}"
+                base_name = self._sanitize(title)
                 formatted_result = {
-                    "title": result.get("title", ""),
+                    "title": title,
                     "url": result.get("url", ""),
-                    "content": result.get("content", ""),
                     "score": result.get("score", 0)
                 }
-                
-                if include_raw_content and "raw_content" in result:
-                    formatted_result["raw_content"] = result["raw_content"]
-                
+
+                content = result.get("content", "") or ""
+                raw = result.get("raw_content", "") if include_raw_content and "raw_content" in result else ""
+
+                if content and len(content) > max_inline:
+                    path = self._save_text(artifact_dir, base_name, "content", content)
+                    formatted_result["content_path"] = path
+                    formatted_result["content"] = content[:max_inline] + "…"
+                else:
+                    formatted_result["content"] = content
+
+                if raw:
+                    path = self._save_text(artifact_dir, base_name, "raw", raw)
+                    formatted_result["raw_content_path"] = path
+                    # do not inline raw content (can be huge); add short preview only
+                    preview = raw[:max_inline] if len(raw) > 0 else ""
+                    if preview:
+                        formatted_result["raw_preview"] = preview + ("…" if len(raw) > max_inline else "")
+
                 formatted_results.append(formatted_result)
             
             return {
@@ -145,7 +184,8 @@ class WebSearch(ToolInterface):
                 "results": formatted_results,
                 "total_results": len(formatted_results),
                 "topic": topic,
-                "status": "success"
+                "status": "success",
+                "note": "long content saved to files; use read_file to load content_path/raw_content_path as needed"
             }
             
         except Exception as e:

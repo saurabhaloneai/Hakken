@@ -225,6 +225,18 @@ class ReminderProvider:
         if task_memory_tool:
             memory_status = task_memory_tool.get_status()
             reminder_parts.append(f"## Task Memory Context\n{memory_status}")
+
+        # Add concise, stable environment info (avoid timestamps)
+        try:
+            env = EnvironmentCollector.collect_all()
+            env_summary = [
+                f"cwd: {env.working_directory}",
+                f"git: {'yes (' + env.git_repo_path + ')' if env.is_git_repo else 'no'}",
+                f"platform: {env.platform}"
+            ]
+            reminder_parts.append("## Environment\n" + "\n".join(env_summary))
+        except Exception:
+            pass
         
         if reminder_parts:
             content = "\n\n".join(reminder_parts)
@@ -248,22 +260,8 @@ class PromptManager:
         self.reminder_provider = ReminderProvider(tool_registry)
     
     def get_system_prompt(self) -> str:
-        """Get the complete system prompt"""
-        env_info = self.environment_collector.collect_all()
-        
-        # Format environment information
-        env_text = f"""
-Working directory: {env_info.working_directory}
-Is directory a git repo: {"Yes, In " + env_info.git_repo_path + " git repository" if env_info.is_git_repo else "No"}
-Platform: {env_info.platform}
-OS Version: {env_info.os_version}
-Today's date: {env_info.current_date}
-"""
-        
-        return f"""
-{self.system_rule_provider.get_system_rule()}
-{env_text.strip()}
-""".strip()
+        """Return a stable system prompt (no volatile env/date) for better KV-cache."""
+        return self.system_rule_provider.get_system_rule()
     
     def get_reminder(self) -> str:
         """Get reminder message"""

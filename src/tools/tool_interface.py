@@ -50,11 +50,22 @@ class ToolRegistry:
     
     def get_all_tools(self) -> Dict[str, ToolInterface]:
         return self.tools.copy()
+
+    def _normalize_schema(self, obj: Any) -> Any:
+        """Recursively sort dict keys for deterministic ordering; preserve list order."""
+        if isinstance(obj, dict):
+            return {k: self._normalize_schema(obj[k]) for k in sorted(obj.keys())}
+        if isinstance(obj, list):
+            return [self._normalize_schema(v) for v in obj]
+        return obj
     
     def get_tools_description(self) -> List[Dict]:
+        """Return tool schemas sorted by tool name with stable key ordering."""
         descriptions = []
-        for tool_name, tool_instance in self.tools.items():
-            descriptions.append(tool_instance.json_schema())
+        for tool_name, tool_instance in sorted(self.tools.items(), key=lambda kv: kv[0]):
+            raw_schema = tool_instance.json_schema()
+            normalized = self._normalize_schema(raw_schema)
+            descriptions.append(normalized)
         return descriptions
     
     async def run_tool(self, tool_name: str, **kwargs) -> Any:

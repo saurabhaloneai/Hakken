@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Set
 from dataclasses import dataclass
 
 
@@ -14,6 +14,9 @@ class InterruptConfigManager:
     
     def __init__(self):
         self._tool_configs: Dict[str, HumanInterruptConfig] = {}
+        # remember approvals within this process
+        self._always_allow_tools: Set[str] = set()
+        self._always_allow_commands: Dict[str, Set[str]] = {}
         self._setup_default_configs()
     
     def _setup_default_configs(self):
@@ -57,6 +60,10 @@ class InterruptConfigManager:
         self._tool_configs[tool_name] = config
     
     def requires_approval(self, tool_name: str, args: Dict[str, Any]) -> bool:
+        # honor remembered approvals first
+        if self.is_always_allowed(tool_name, args):
+            return False
+
         config = self.get_config(tool_name)
         
         # Default approval check from args
@@ -70,6 +77,30 @@ class InterruptConfigManager:
         }
         
         return need_approval_from_args or tool_name in always_require_approval
+
+    def is_always_allowed(self, tool_name: str, args: Dict[str, Any]) -> bool:
+        # tool-level allow
+        if tool_name in self._always_allow_tools:
+            return True
+        # command-level allow (for cmd_runner)
+        if tool_name == 'cmd_runner':
+            cmd = args.get('command', '') if isinstance(args, dict) else ''
+            if not cmd:
+                return False
+            allowed = self._always_allow_commands.get(tool_name, set())
+            return cmd in allowed
+        return False
+
+    def set_always_allow(self, tool_name: str, args: Optional[Dict[str, Any]] = None) -> None:
+        """Remember approval for future calls. For cmd_runner, remembers the specific command string."""
+        if tool_name == 'cmd_runner' and isinstance(args, dict):
+            cmd = args.get('command', '')
+            if cmd:
+                s = self._always_allow_commands.setdefault(tool_name, set())
+                s.add(cmd)
+                return
+        # fallback: tool-level allow
+        self._always_allow_tools.add(tool_name)
     
     def get_approval_options(self, tool_name: str) -> Dict[str, bool]:
         config = self.get_config(tool_name)
