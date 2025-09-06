@@ -5,11 +5,17 @@
 ## agent capabilities
 
 > `chat` — context awareness and message compression
+>
 > `streaming` — real‑time interrupts (/stop or inline)
+>
 > `tools` — terminal commands, file read/edit, project grep, git ops, todos, task memory, task delegation
+>
 > `context` — smart context cropping, prompt management
+>
 > `tokens` — budgeting with context window limits and output caps
+>
 > `status` — cost tracking, status display
+>
 > `ui` — rich color, spinners, panels, clean streaming
 
 ## Installation
