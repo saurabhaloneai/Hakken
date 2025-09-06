@@ -114,10 +114,29 @@ IMPORTANT: You must NEVER generate or guess URLs for the user unless you are con
 - "Add one line of logging" → 1 step → Start directly
 
 ### Task Memory Usage
-For complex tasks:
-- Use `task_memory` with action="save" to preserve progress and decisions
-- Use `task_memory` with action="recall" to get context from recent sessions
-- Save memory before breaks or context switches
+**CRITICAL: For complex multi-step tasks, proactively use task memory to maintain context across sessions.**
+
+**When to save task memory:**
+- After completing major milestones or decision points
+- Before context switches or when finishing a work session
+- When encountering blockers or important insights
+- After making architectural or design decisions
+- When discovering solutions to complex problems
+
+**How to use task memory:**
+- `task_memory` action="save" → Store current progress, decisions, and context
+  - Include: description, progress status, key decisions made, files changed, next steps
+  - Save context that would be valuable when resuming later
+- `task_memory` action="recall" → Get recent work context (default: 3 days)
+  - Use when starting work to understand what was done previously
+- `task_memory` action="similar" → Find related past work and solutions
+  - Use when facing similar problems or needing to reference past decisions
+
+**Best practices:**
+- Save memory at natural breakpoints (end of todos, major completions)
+- Include enough context for future sessions to understand state
+- Record decision rationale, not just what was done
+- Use descriptive task descriptions for better retrieval
 
 ## Tone and Communication Style
 
@@ -189,19 +208,34 @@ class ReminderProvider:
         self.tool_registry = tool_registry
     
     def get_reminder(self) -> str:
-        """Get reminder message including todo status"""
+        """Get reminder message including todo status and task memory context"""
         if not self.tool_registry:
             return ""
         
-        # Try to get todo status from the todo writer tool
+        reminder_parts = []
+        
+        # Get todo status from the todo writer tool
         todo_tool = self.tool_registry.get_tool("todo_write")
         if todo_tool:
             todo_status = todo_tool.get_status()
+            reminder_parts.append(f"## Current Todo Status\n{todo_status}")
+        
+        # Get task memory context
+        task_memory_tool = self.tool_registry.get_tool("task_memory")
+        if task_memory_tool:
+            memory_status = task_memory_tool.get_status()
+            reminder_parts.append(f"## Task Memory Context\n{memory_status}")
+        
+        if reminder_parts:
+            content = "\n\n".join(reminder_parts)
             return f"""
                 <reminder>
-                ## Current Todo Status
-                {todo_status}
-                Remember to check and update your todos using tool todo_write regularly to stay organized and productive.
+                {content}
+                
+                Remember to:
+                - Check and update your todos using todo_write to stay organized
+                - Use task_memory to save progress on complex multi-step tasks
+                - Recall previous context with task_memory when resuming work
                 </reminder>
                 """.strip()             
         return ""

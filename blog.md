@@ -384,6 +384,66 @@ The magic happens in the prompt system. After every tool execution, I inject a r
 
 It's like giving the AI a notepad that it can actually read and write.
 
+### Task Memory: The Long-Term Context
+
+But what about complex tasks that span multiple sessions? Enter task memory - persistent storage for agent context:
+
+```python
+class TaskMemory:
+    def __init__(self):
+        self.memory_file = ".hakken/task_memory.jsonl"
+    
+    async def save_memory(self, description, progress, decisions, context, files_changed, next_steps):
+        memory = {
+            "id": f"{session_id}_{timestamp}",
+            "timestamp": datetime.now().isoformat(),
+            "description": description,
+            "progress": progress,
+            "decisions": decisions,
+            "context": context,
+            "files_changed": files_changed,
+            "next_steps": next_steps
+        }
+        
+        with open(self.memory_file, 'a') as f:
+            f.write(json.dumps(memory) + '\n')
+```
+
+The agent can now save key insights and recall them later:
+- `task_memory save` → Store important progress and decisions
+- `task_memory recall` → Get context from recent sessions  
+- `task_memory similar` → Find related past work
+
+This gets injected into the reminder system alongside todos, so the AI maintains continuity across sessions.
+
+### Web Search: Real-Time Knowledge
+
+Sometimes the AI needs fresh information. But web search is dangerous - it can leak context or waste money. Solution: user approval:
+
+```python
+class WebSearch(ToolInterface):
+    async def act(self, query: str, need_user_approve=True):
+        if need_user_approve:
+            # This triggers the approval flow automatically
+            pass
+        
+        search_results = await self.tavily_client.search(
+            query=query,
+            max_results=5,
+            topic="general"
+        )
+        
+        return {
+            "query": query,
+            "results": search_results,
+            "status": "success"
+        }
+```
+
+The beautiful part: approval happens automatically through the tool execution flow. The user gets prompted "Tool: web_search, args: {query: 'latest React features'}" and can approve, deny, or modify.
+
+Privacy-first by design. No surprise external requests.
+
 ## The Prompt Engineering (Or: How to Talk to Your Agent)
 
 ### System Prompt: The Constitution
@@ -702,7 +762,29 @@ Token costs add up fast. A single conversation can easily hit thousands of token
 - When to compress
 - How to summarize
 
-### 5. Tools Are Your Product
+### 5. Memory Beats Context Windows
+
+Long conversations hit token limits fast. But persistent memory? That scales indefinitely:
+
+- Store key decisions and context in structured format
+- Recall relevant info when needed, not everything always
+- Build memory that survives restarts and context switches
+- Make it searchable and organized
+
+Task memory turned out to be more valuable than I expected. The AI can now work on week-long projects and pick up exactly where it left off.
+
+### 6. External APIs Need Guardrails
+
+Web search, file uploads, API calls - external tools are powerful but dangerous:
+
+- Always require user approval for external requests
+- Fail gracefully when APIs are down or misconfigured  
+- Cache results when possible to avoid repeated calls
+- Show users exactly what data is being sent where
+
+Privacy and transparency aren't features, they're requirements.
+
+### 7. Tools Are Your Product
 
 The quality of your agent is determined by the quality of your tools. Spend time making them:
 
@@ -774,7 +856,9 @@ We're moving from "AI that answers questions" to "AI that gets shit done." The n
 
 If you want to build your own agent, here are the non-obvious things that matter:
 
-**Context Management**: Treat your context window like precious memory. Compress aggressively, but preserve the important bits.
+**Context Management**: Treat your context window like precious memory. Compress aggressively, but preserve the important bits. Consider persistent memory for long-term context.
+
+**External API Integration**: Web search, database calls, third-party APIs expand capabilities but need user approval and graceful failure handling.
 
 **Error Recovery**: Every tool can fail. Every network call can timeout. Plan for it.
 
@@ -789,7 +873,7 @@ If you want to build your own agent, here are the non-obvious things that matter
 This is just the beginning. Some ideas for where agents are heading:
 
 - **Multi-modal agents** that can see and hear, not just read text
-- **Persistent agents** that remember across sessions and learn from usage patterns  
+- **Persistent agents** that remember across sessions and learn from usage patterns (Hakken already has task memory for this!)  
 - **Collaborative agents** that work in teams to solve complex problems
 - **Embedded agents** that live inside your development environment
 

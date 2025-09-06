@@ -77,7 +77,7 @@ execution flow:
 
 1. llm responds with tool calls → `_handle_tool_calls(...)` → (optional) `confirm_action` → `ToolRegistry.run_tool(name, **args)` → `tool_instance.act(...)`.
 2. the tool returns a result (usually a dict or string). the agent serializes it to json and posts a `role=tool` message via `_add_tool_response(...)`.
-3. if it was the last tool in the batch, `_add_tool_response` appends a reminder from `PromptManager.get_reminder()`. that reminder pulls todo status from the todo tool (see below) so the llm can see current progress.
+3. if it was the last tool in the batch, `_add_tool_response` appends a reminder from `PromptManager.get_reminder()`. that reminder pulls todo status and task memory context so the llm can see current progress and recent memory entries.
 4. the agent re-enters `_recursive_message_handling(...)` so the llm can read the tool output and continue.
 
 notable tools:
@@ -92,7 +92,20 @@ notable tools:
   - executes shell commands (non-interactive) and returns stdout/stderr.
 
 - `read_file` / `edit_file` (`src/tools/file_reader.py`, `src/tools/file_editor.py`)
-  - read returns line-numbered content, edit performs find/replace on existing files.
+  - read file contents with optional line range limits
+  - edit files using search-and-replace operations
+
+- `task_memory` (`src/tools/task_memory_tool.py`)
+  - persistent memory for complex multi-session tasks
+  - saves progress, decisions, context, and next steps to `.hakken/task_memory.jsonl`
+  - three actions: save (store current state), recall (get recent context), similar (find related work)
+  - automatically included in reminder system for llm context
+
+- `web_search` (`src/tools/web_search.py`)
+  - real-time web search using tavily api for current information
+  - requires user approval before executing searches (privacy protection)
+  - supports different search topics (general, news, finance)
+  - includes raw content option for detailed research
 
 - `grep_search` (`src/tools/grep_search.py`)
   - lightweight, bounded search across files.
@@ -152,14 +165,18 @@ typical shapes inside `ConversationHistoryManager.messages_history[-1]`:
   - `smart_context_cropper` can also be invoked explicitly by the llm.
 
 
-## todo updates (how they appear to the llm and user)
+## todo and memory updates (how they appear to the llm and user)
 
 - when `todo_write` runs, it:
   - validates the list, stores it in memory, and calls `HakkenCodeUI.display_todos` so the user sees a nicely formatted panel.
   - returns a success string to the llm (as a tool result).
+- when `task_memory` runs with action="save", it:
+  - stores progress, decisions, and context to `.hakken/task_memory.jsonl` for persistence across sessions
+  - enables future recall of important context and decisions made during complex tasks
 - after the last tool in a batch, `_add_tool_response` appends a reminder from `PromptManager.get_reminder()`:
-  - this reminder pulls `TodoWriteManager.get_status()` (json) and embeds the current todos into the tool message content.
-  - the effect: the llm always has the latest todo state in-context and can check off or update items on subsequent turns by calling `todo_write` again.
+  - this reminder pulls both `TodoWriteManager.get_status()` and `TaskMemoryTool.get_status()` 
+  - embeds current todos and recent memory entry count into the tool message content
+  - the effect: the llm always has the latest todo state and memory context in-context for better continuity
 
 
 ## quick reference (files and responsibilities)
@@ -179,6 +196,8 @@ typical shapes inside `ConversationHistoryManager.messages_history[-1]`:
   - `src/tools/git_tools.py`: git status/diff/log.
   - `src/tools/context_cropper.py`: crop history safely.
   - `src/tools/task_delegator.py`: nested sub-agent tasks.
+  - `src/tools/task_memory_tool.py`: persistent memory for complex tasks.
+  - `src/tools/web_search.py`: real-time web search with user approval.
 
 
 ## sequence (mermaid)
@@ -215,10 +234,17 @@ sequenceDiagram
 ```
 
 
-## environment variables (minimum)
+## environment variables
 
+**required:**
 - `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` (required by `APIConfiguration.from_environment`).
-- optional context/tuning: `OPENAI_MAX_OUTPUT_TOKENS`, `OPENAI_CONTEXT_LIMIT`, `OPENAI_OUTPUT_BUFFER_TOKENS`, `OPENAI_TEMPERATURE`.
+
+**optional llm tuning:**
+- `OPENAI_MAX_OUTPUT_TOKENS`, `OPENAI_CONTEXT_LIMIT`, `OPENAI_OUTPUT_BUFFER_TOKENS`, `OPENAI_TEMPERATURE`.
+
+**optional tool configuration:**
+- `TAVILY_API_KEY`: required for web search functionality via `web_search` tool. get from https://tavily.com
+- without this key, web search tool will show "api key not configured" status and fail gracefully
 
 
 ## faq
