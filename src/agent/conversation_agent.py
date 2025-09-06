@@ -19,6 +19,7 @@ from tools.file_reader import FileReader
 from tools.grep_search import GrepSearch
 from tools.git_tools import GitTools
 from tools.file_editor import FileEditor
+from tools.web_search import WebSearch
 from prompt.prompt_manager import PromptManager
 current_dir = Path(__file__).parent.parent.absolute()
 if str(current_dir) not in sys.path:
@@ -84,6 +85,9 @@ class ConversationAgent:
         
         file_editor = FileEditor()
         self.tool_registry.register_tool(file_editor)
+        
+        web_search = WebSearch()
+        self.tool_registry.register_tool(web_search)
 
     @property
     def messages(self) -> List[Dict]:
