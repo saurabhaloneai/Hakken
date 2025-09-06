@@ -1,6 +1,0 @@
-include README.md
-include LICENSE
-include pyproject.toml
-recursive-include src *.py
-global-exclude __pycache__
-global-exclude *.py[co]
