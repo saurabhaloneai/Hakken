@@ -4,7 +4,7 @@
 > 
 > this is like a claude-code but `opensource` hehe and i have build this from scratch. 
 
-[img](assets/images/interface.png)
+![img](assets/images/interface.png)
 
 ## agent capabilities
 
