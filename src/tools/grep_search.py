@@ -16,7 +16,7 @@ class GrepSearch(ToolInterface):
             "type": "function",
             "function": {
                 "name": "grep_search",
-                "description": "Search for text patterns in files",
+                "description": self._tool_description(),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -93,3 +93,53 @@ class GrepSearch(ToolInterface):
             
         except Exception as e:
             return {"error": f"Search error: {str(e)}"}
+    
+    def _tool_description(self) -> str:
+        return """
+Search for text patterns across files in a directory tree with intelligent filtering and result limiting.
+
+This tool provides powerful text search capabilities similar to grep, with built-in optimizations for code exploration.
+
+Search Parameters:
+1. pattern (required): Text pattern to search for
+   - Case-insensitive matching
+   - Searches within file contents line by line
+   - Simple string matching (not regex)
+
+2. path (optional): Directory or file path to search
+   - Default: current directory (".")
+   - Can specify a single file for targeted search
+   - Recursively searches subdirectories
+
+3. file_extension (optional): Filter by file type
+   - Example: ".py" for Python files, ".js" for JavaScript
+   - Helps narrow search scope for faster results
+
+Smart Features:
+- Auto-ignores common non-source directories (.git, __pycache__, node_modules)
+- Limits search to 50 files maximum for performance
+- Limits results to 20 matches to prevent overwhelming output
+- Gracefully handles binary files and encoding issues
+
+Output Format:
+- Returns array of matches with file path, line number, and content
+- Each match shows the exact line where pattern was found
+- Includes total match count for quick assessment
+
+Performance Optimizations:
+- Stops searching after reaching result limits
+- Skips common ignore patterns automatically
+- Uses efficient file traversal for large directories
+
+Use Cases:
+- Find function definitions across a codebase
+- Locate configuration values in config files
+- Search for error messages or log patterns
+- Discover usage of specific variables or imports
+- Code review and debugging assistance
+
+Best Practices:
+- Use specific file extensions for faster, targeted searches
+- Use descriptive patterns to get relevant results
+- Check result count - if maxed out, consider narrowing the search
+"""

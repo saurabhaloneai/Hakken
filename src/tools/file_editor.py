@@ -15,7 +15,7 @@ class FileEditor(ToolInterface):
             "type": "function",
             "function": {
                 "name": "edit_file",
-                "description": "Edit file contents by replacing text",
+                "description": self._tool_description(),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -70,3 +70,43 @@ class FileEditor(ToolInterface):
             
         except Exception as e:
             return {"error": f"Edit error: {str(e)}"}
+    
+    def _tool_description(self) -> str:
+        return """
+Edit file contents by performing precise text replacement operations.
+
+This tool allows you to make targeted edits to existing files by replacing specific text patterns with new content.
+
+Usage Guidelines:
+1. File Path: Provide the full path to the file you want to edit
+2. Old Text: The exact text you want to replace (must match exactly)
+3. New Text: The replacement text to insert
+
+Requirements:
+- The target file must exist
+- The old_text must be found exactly in the file
+- The replacement is performed on all occurrences of old_text
+
+Safety Features:
+- Validates file existence before attempting edits
+- Confirms old_text exists before making changes
+- Provides clear error messages for failed operations
+- Preserves file encoding (UTF-8)
+
+Best Practices:
+1. Read the file first to understand its current content
+2. Use unique text patterns for old_text to avoid unintended replacements
+3. Be precise with whitespace, indentation, and line breaks
+4. Test with small changes first for complex edits
+
+Output:
+- Returns success confirmation with change summary
+- Shows truncated preview of what was replaced
+- Includes file path for verification
+
+Use Cases:
+- Fix bugs by replacing problematic code
+- Update configuration values
+- Modify function implementations
+- Correct text content in files
+"""

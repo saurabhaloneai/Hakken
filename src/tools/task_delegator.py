@@ -110,7 +110,7 @@ class TaskDelegator(ToolInterface):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": "Delegate complex tasks to specialized sub-agents with specific expertise",
+                "description": self._tool_description(),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -133,3 +133,46 @@ class TaskDelegator(ToolInterface):
     def get_status(self) -> str:
         agents = self.subagent_manager.list_agents()
         return f"Task Delegator: {len(agents)} agents available ({', '.join(agents)})"
+    
+    def _tool_description(self) -> str:
+        return """
+Delegate complex tasks to specialized sub-agents with specific expertise and capabilities.
+
+This tool allows you to offload complex, multi-step tasks to specialized agents that are optimized for specific types of work.
+
+Available Agent Types:
+1. general - General purpose agent for diverse tasks
+   - Strengths: Code search, file analysis, system architecture exploration
+   - Best for: Broad research tasks, multi-file investigations, pattern discovery
+   - Guidelines: Uses comprehensive search strategies, thorough analysis approach
+
+2. code_specialist - Specialized code analysis and optimization agent  
+   - Strengths: Code review, bug detection, performance optimization, security analysis
+   - Best for: Code quality assessment, refactoring recommendations, technical debt analysis
+   - Guidelines: Focuses on code quality, maintainability, and best practices
+
+When to Use Task Delegation:
+- Complex multi-step tasks that require specialized knowledge
+- Large-scale code analysis across multiple files
+- Tasks requiring deep domain expertise (security, performance, architecture)
+- Research tasks that need comprehensive exploration
+- When you need a fresh perspective on a problem
+
+Task Description Guidelines:
+- Be specific about what you want accomplished
+- Include relevant context (file paths, problem description, constraints)
+- Specify desired output format if important
+- Mention any particular areas of focus
+
+Output:
+- Returns structured result with agent type, task description, and detailed findings
+- Includes status indicator (completed/failed)
+- Provides comprehensive analysis from the specialized agent
+- May include file paths, code snippets, and recommendations
+
+Best Practices:
+- Use general agent for broad exploration and research tasks
+- Use code_specialist for technical analysis and optimization tasks  
+- Provide clear, detailed task descriptions for better results
+- Consider delegating when a task requires specialized expertise beyond general capabilities
+"""

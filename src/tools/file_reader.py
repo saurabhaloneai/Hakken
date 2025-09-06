@@ -15,7 +15,7 @@ class FileReader(ToolInterface):
             "type": "function",
             "function": {
                 "name": "read_file",
-                "description": "Read file contents with line numbers",
+                "description": self._tool_description(),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -75,3 +75,32 @@ class FileReader(ToolInterface):
             
         except Exception as e:
             return {"error": f"Error reading file: {str(e)}"}
+    
+    def _tool_description(self) -> str:
+        return """
+Read and display file contents with line numbers for easy reference and navigation.
+
+This tool provides a simple way to examine file contents, with optional line range selection for large files.
+
+Usage Guidelines:
+1. File Path: Provide the full path to the file you want to read
+2. Line Range (Optional): 
+   - Use start_line and end_line to read specific sections of large files
+   - If not specified, the entire file will be read
+   - Line numbers start from 1
+
+Output Format:
+- Each line is displayed with its line number for easy reference
+- Format: "LINE_NUMBER|CONTENT"
+- Line numbers are right-aligned and padded for readability
+
+Features:
+- Supports UTF-8 encoded text files
+- Handles missing files gracefully with clear error messages
+- Memory efficient for large files when using line ranges
+- Perfect for code review and debugging tasks
+
+Examples:
+- Read entire file: file_path="main.py"
+- Read specific range: file_path="main.py", start_line=10, end_line=20
+"""

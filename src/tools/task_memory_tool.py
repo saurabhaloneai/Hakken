@@ -74,7 +74,7 @@ class TaskMemoryTool(ToolInterface):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": "Manage task memory for long-horizon tasks - save progress, recall context, find similar tasks",
+                "description": self._tool_description(),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -124,3 +124,57 @@ class TaskMemoryTool(ToolInterface):
     def get_status(self) -> str:
         recent_count = len(self.memory_manager.get_recent_memories(days=7))
         return f"Task Memory: {recent_count} recent entries, session: {self.current_session}"
+    
+    def _tool_description(self) -> str:
+        return """
+Manage persistent task memory for long-horizon tasks - save progress, recall context, and find similar past work.
+
+This tool provides memory capabilities for complex, multi-session tasks by storing and retrieving contextual information about your work.
+
+Available Actions:
+1. save - Store current task state and progress
+   - Captures task description, progress data, key decisions
+   - Records modified files and planned next steps
+   - Associates memory with current session for easy retrieval
+   - Creates timestamped entries for chronological tracking
+
+2. recall - Retrieve recent context and progress
+   - Fetches summaries of recent work within specified days
+   - Helps resume interrupted tasks with full context
+   - Default lookback period: 3 days
+   - Provides chronological overview of recent activities
+
+3. similar - Find tasks with similar descriptions or context
+   - Uses description matching to find related past work
+   - Shows previously made decisions and lessons learned
+   - Helps avoid repeating research or rediscovering solutions
+   - Returns ranked list of similar tasks with key insights
+
+When to Use Task Memory:
+- Multi-day or multi-session projects
+- Complex tasks with many decision points
+- Research tasks where context accumulates over time
+- Collaborative work where progress needs to be shared
+- Learning from past similar tasks
+
+Save Memory Parameters:
+- description: Brief summary of current task
+- progress: Structured data about completion status, milestones
+- decisions: Array of key decisions made during task execution
+- context: Current situation, blockers, insights
+- files_changed: List of modified files for tracking impact
+- next_steps: Planned actions for task continuation
+
+Memory Management:
+- Automatic session tracking with unique identifiers
+- Timestamped entries for chronological organization
+- Persistent storage across application restarts
+- Efficient retrieval based on time ranges and similarity
+
+Best Practices:
+- Save memory at key decision points and major milestones
+- Include enough context for future sessions to understand state
+- Use descriptive task descriptions for better similarity matching
+- Regularly recall context when resuming complex tasks
+- Search for similar tasks before starting new research
+"""
