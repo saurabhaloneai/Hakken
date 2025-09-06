@@ -17,26 +17,32 @@ class InterruptConfigManager:
         self._setup_default_configs()
     
     def _setup_default_configs(self):
+        # Define tool name constants to avoid drift
+        CMD_RUNNER = "cmd_runner"
+        SMART_CONTEXT_CROPPER = "smart_context_cropper"
+        DELEGATE_TASK = "delegate_task"
+        WEB_SEARCH = "web_search"
+        
         self._tool_configs.update({
-            "run_command": HumanInterruptConfig(
+            CMD_RUNNER: HumanInterruptConfig(
                 allow_accept=True,
                 allow_respond=True,
                 allow_edit=True,
                 allow_ignore=False
             ),
-            "context_cropper": HumanInterruptConfig(
+            SMART_CONTEXT_CROPPER: HumanInterruptConfig(
                 allow_accept=True,
                 allow_respond=True,
                 allow_edit=False,
                 allow_ignore=False
             ),
-            "delegate_task": HumanInterruptConfig(
+            DELEGATE_TASK: HumanInterruptConfig(
                 allow_accept=True,
                 allow_respond=True,
                 allow_edit=True,
                 allow_ignore=True
             ),
-            "web_search": HumanInterruptConfig(
+            WEB_SEARCH: HumanInterruptConfig(
                 allow_accept=True,
                 allow_respond=True,
                 allow_edit=False,
@@ -52,11 +58,18 @@ class InterruptConfigManager:
     
     def requires_approval(self, tool_name: str, args: Dict[str, Any]) -> bool:
         config = self.get_config(tool_name)
-        if not config:
-            return args.get('need_user_approve', False)
         
-        return (args.get('need_user_approve', False) or 
-                tool_name in ['run_command', 'context_cropper', 'web_search'])
+        # Default approval check from args
+        need_approval_from_args = args.get('need_user_approve', False)
+        
+        # Tools that always require approval by design
+        always_require_approval = {
+            'cmd_runner',  # Command execution is potentially dangerous
+            'smart_context_cropper',  # Modifies conversation context
+            'web_search'  # External API calls
+        }
+        
+        return need_approval_from_args or tool_name in always_require_approval
     
     def get_approval_options(self, tool_name: str) -> Dict[str, bool]:
         config = self.get_config(tool_name)

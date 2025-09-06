@@ -1,6 +1,16 @@
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Literal, Optional
+from dataclasses import dataclass
+
+
+@dataclass
+class ToolResult:
+    """Standardized result envelope for all tool operations"""
+    status: Literal["success", "error"]
+    data: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class ToolInterface(ABC):

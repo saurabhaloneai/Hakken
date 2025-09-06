@@ -1,20 +1,21 @@
 import subprocess
+import os
 from typing import Dict, Any
-from .tool_interface import ToolInterface
+from .tool_interface import ToolInterface, ToolResult
 
 
 class GitTools(ToolInterface):
-    """Simple Git operations"""
+
     
     @staticmethod
     def get_tool_name() -> str:
-        return "git_status"
+        return "git_tools"
 
     def json_schema(self) -> Dict[str, Any]:
         return {
             "type": "function",
             "function": {
-                "name": "git_status",
+                "name": "git_tools",
                 "description": self._tool_description(),
                 "parameters": {
                     "type": "object",
@@ -35,6 +36,13 @@ class GitTools(ToolInterface):
 
     async def act(self, command: str) -> Dict[str, Any]:
         try:
+            # Check if we're in a git repository
+            if not self._is_git_repository():
+                return ToolResult(
+                    status="error",
+                    error="Not a git repository (or any of the parent directories)"
+                ).__dict__
+            
             if command == "status":
                 result = subprocess.run(['git', 'status', '--porcelain'], 
                                       capture_output=True, text=True)
@@ -45,18 +53,30 @@ class GitTools(ToolInterface):
                 result = subprocess.run(['git', 'log', '--oneline', '-10'], 
                                       capture_output=True, text=True)
             else:
-                return {"error": f"Unknown git command: {command}"}
+                return ToolResult(
+                    status="error",
+                    error=f"Unknown git command: {command}. Supported: status, diff, log"
+                ).__dict__
             
             if result.returncode == 0:
-                return {
-                    "command": f"git {command}",
-                    "output": result.stdout
-                }
+                return ToolResult(
+                    status="success",
+                    data={
+                        "command": f"git {command}",
+                        "output": result.stdout
+                    }
+                ).__dict__
             else:
-                return {"error": f"Git command failed: {result.stderr}"}
+                return ToolResult(
+                    status="error",
+                    error=f"Git command failed: {result.stderr.strip()}"
+                ).__dict__
                 
         except Exception as e:
-            return {"error": f"Git error: {str(e)}"}
+            return ToolResult(
+                status="error",
+                error=f"Git error: {str(e)}"
+            ).__dict__
     
     def _tool_description(self) -> str:
         return """
@@ -96,3 +116,16 @@ Security:
 - Does not modify repository state
 - Safe to use for repository inspection
 """
+
+    def _is_git_repository(self) -> bool:
+        """Check if current directory is within a git repository"""
+        try:
+            # Check if git rev-parse succeeds (more reliable than checking for .git)
+            result = subprocess.run(
+                ['git', 'rev-parse', '--git-dir'], 
+                capture_output=True, 
+                text=True
+            )
+            return result.returncode == 0
+        except Exception:
+            return False

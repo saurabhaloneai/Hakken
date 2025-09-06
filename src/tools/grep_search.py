@@ -1,12 +1,11 @@
 import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from .tool_interface import ToolInterface
+from .tool_interface import ToolInterface, ToolResult
 
 
 class GrepSearch(ToolInterface):
-    """Simple grep-like search tool"""
-    
+     
     @staticmethod
     def get_tool_name() -> str:
         return "grep_search"
@@ -47,9 +46,17 @@ class GrepSearch(ToolInterface):
         try:
             search_path = Path(path)
             if not search_path.exists():
-                return {"error": f"Path does not exist: {path}"}
+                return ToolResult(
+                    status="error",
+                    error=f"Path does not exist: {path}"
+                ).__dict__
             
             results = []
+            file_limit = 50
+            match_limit = 20
+            files_processed = 0
+            files_truncated = False
+            matches_truncated = False
             
             # Get files to search
             if search_path.is_file():
@@ -66,8 +73,14 @@ class GrepSearch(ToolInterface):
                             continue
                         files.append(file_path)
             
+            # Check if we're truncating files
+            if len(files) > file_limit:
+                files_truncated = True
+                files = files[:file_limit]
+            
             # Search in files
-            for file_path in files[:50]:  # Limit to 50 files
+            for file_path in files:
+                files_processed += 1
                 try:
                     with open(file_path, 'r', encoding='utf-8') as f:
                         for line_num, line in enumerate(f, 1):
@@ -77,22 +90,37 @@ class GrepSearch(ToolInterface):
                                     "line": line_num,
                                     "content": line.strip()
                                 })
-                                if len(results) >= 20:  # Limit results
+                                if len(results) >= match_limit:
+                                    matches_truncated = True
                                     break
                 except:
                     continue  # Skip files we can't read
                 
-                if len(results) >= 20:
+                if len(results) >= match_limit:
                     break
             
-            return {
-                "pattern": pattern,
-                "results": results,
-                "total_matches": len(results)
-            }
+            return ToolResult(
+                status="success",
+                data={
+                    "pattern": pattern,
+                    "results": results,
+                    "total_matches": len(results),
+                    "files_processed": files_processed
+                },
+                metadata={
+                    "truncated": files_truncated or matches_truncated,
+                    "files_truncated": files_truncated,
+                    "matches_truncated": matches_truncated,
+                    "file_limit": file_limit,
+                    "match_limit": match_limit
+                }
+            ).__dict__
             
         except Exception as e:
-            return {"error": f"Search error: {str(e)}"}
+            return ToolResult(
+                status="error",
+                error=f"Search error: {str(e)}"
+            ).__dict__
     
     def _tool_description(self) -> str:
         return """

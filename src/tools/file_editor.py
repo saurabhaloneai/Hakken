@@ -1,10 +1,9 @@
 from pathlib import Path
-from typing import Dict, Any
-from .tool_interface import ToolInterface
+from typing import Dict, Any, Optional
+from .tool_interface import ToolInterface, ToolResult
 
 
 class FileEditor(ToolInterface):
-    """Simple file editing tool"""
     
     @staticmethod
     def get_tool_name() -> str:
@@ -30,6 +29,10 @@ class FileEditor(ToolInterface):
                         "new_text": {
                             "type": "string",
                             "description": "New text to insert"
+                        },
+                        "max_replacements": {
+                            "type": "integer",
+                            "description": "Maximum number of replacements to perform (optional, default: unlimited)"
                         }
                     },
                     "required": ["file_path", "old_text", "new_text"]
@@ -40,12 +43,15 @@ class FileEditor(ToolInterface):
     def get_status(self) -> str:
         return "ready"
 
-    async def act(self, file_path: str, old_text: str, new_text: str) -> Dict[str, Any]:
+    async def act(self, file_path: str, old_text: str, new_text: str, max_replacements: Optional[int] = None) -> Dict[str, Any]:
         try:
             path = Path(file_path)
             
             if not path.exists():
-                return {"error": f"File not found: {file_path}"}
+                return ToolResult(
+                    status="error",
+                    error=f"File not found: {file_path}"
+                ).__dict__
             
             # Read file
             with open(path, 'r', encoding='utf-8') as f:
@@ -53,23 +59,51 @@ class FileEditor(ToolInterface):
             
             # Check if old_text exists
             if old_text not in content:
-                return {"error": f"Text not found in file: {old_text[:50]}..."}
+                return ToolResult(
+                    status="error",
+                    error=f"Text not found in file: {old_text[:50]}..."
+                ).__dict__
             
-            # Replace text
-            new_content = content.replace(old_text, new_text)
+            # Count occurrences before replacement
+            occurrence_count = content.count(old_text)
+            
+            # Handle max_replacements constraint
+            if max_replacements is not None and max_replacements > 0:
+                # Replace up to max_replacements occurrences
+                new_content = content
+                replacements_made = 0
+                while replacements_made < max_replacements and old_text in new_content:
+                    new_content = new_content.replace(old_text, new_text, 1)
+                    replacements_made += 1
+                actual_replacements = replacements_made
+            else:
+                # Replace all occurrences (original behavior)
+                new_content = content.replace(old_text, new_text)
+                actual_replacements = occurrence_count
             
             # Write back
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(new_content)
             
-            return {
-                "file_path": str(path),
-                "message": "File edited successfully",
-                "changes": f"Replaced '{old_text[:30]}...' with '{new_text[:30]}...'"
-            }
+            return ToolResult(
+                status="success",
+                data={
+                    "file_path": str(path),
+                    "message": "File edited successfully",
+                    "changes": f"Replaced '{old_text[:30]}...' with '{new_text[:30]}...'"
+                },
+                metadata={
+                    "total_occurrences": occurrence_count,
+                    "replacements_made": actual_replacements,
+                    "max_replacements_requested": max_replacements
+                }
+            ).__dict__
             
         except Exception as e:
-            return {"error": f"Edit error: {str(e)}"}
+            return ToolResult(
+                status="error",
+                error=f"Edit error: {str(e)}"
+            ).__dict__
     
     def _tool_description(self) -> str:
         return """

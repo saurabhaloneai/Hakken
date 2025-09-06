@@ -3,8 +3,9 @@ import sys
 import traceback
 import asyncio
 import os
+import hashlib
 from pathlib import Path
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Tuple
 from client.openai_client import APIClient, APIConfiguration
 from history.conversation_history import ConversationHistoryManager, HistoryConfiguration
 from interface.user_interface import HakkenCodeUI
@@ -56,6 +57,9 @@ class ConversationAgent:
       
         self._is_in_task = False
         self._pending_user_instruction: str = ""
+        
+        # Tool schema token estimation cache: (schema_hash, estimated_tokens)
+        self._tools_schema_cache: Optional[Tuple[str, int]] = None
     
     def _register_tools(self) -> None:
        
@@ -168,7 +172,7 @@ class ConversationAgent:
         messages = self._get_messages_with_cache_mark()
         tools_description = self.tool_registry.get_tools_description()
         limits = self._get_openai_env_limits()
-        estimated_input_tokens = self._estimate_tokens(messages) + self._estimate_tokens(tools_description)
+        estimated_input_tokens = self._estimate_tokens(messages) + self._estimate_tools_tokens(tools_description)
         max_output_tokens = self._compute_max_output_tokens(estimated_input_tokens, limits)
         temperature = self._get_temperature()
 
@@ -179,17 +183,17 @@ class ConversationAgent:
             "temperature": temperature,
             "tool_choice": "auto",
         }
+
+        response_message = None
+        full_content = ""
+        token_usage = None
+        interrupted = False
         
         try:
             stream_generator = self.api_client.get_completion_stream(request)
             
             if stream_generator is None:
                 raise Exception("Stream generator is None - API client returned no response")
-            
-            response_message = None
-            full_content = ""
-            token_usage = None
-            interrupted = False
             self.ui_interface.start_assistant_response()
             spinner_stopped = False
             
@@ -391,6 +395,28 @@ class ConversationAgent:
             except Exception:
                 serialized = ""
         return max(0, (len(serialized) + 3) // 4)
+
+    def _estimate_tools_tokens(self, tools_description: List[Dict]) -> int:
+        """Estimate tokens for tool schemas with caching since they rarely change"""
+        try:
+            # Create a hash of the tools description for cache key
+            serialized = json.dumps(tools_description, sort_keys=True, ensure_ascii=False)
+            tools_hash = hashlib.md5(serialized.encode()).hexdigest()
+            
+            # Check if we have a cached result
+            if self._tools_schema_cache is not None:
+                cached_hash, cached_tokens = self._tools_schema_cache
+                if cached_hash == tools_hash:
+                    return cached_tokens
+            
+            # Calculate tokens and cache the result
+            estimated_tokens = self._estimate_tokens(tools_description)
+            self._tools_schema_cache = (tools_hash, estimated_tokens)
+            return estimated_tokens
+            
+        except Exception:
+            # Fallback to direct estimation
+            return self._estimate_tokens(tools_description)
 
     def _get_openai_env_limits(self) -> Dict[str, int]:
         return {

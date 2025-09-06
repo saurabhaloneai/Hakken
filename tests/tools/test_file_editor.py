@@ -31,9 +31,10 @@ class TestFileEditor:
             "Hello Python"
         )
         
-        assert "error" not in result
-        assert "message" in result
-        assert "File edited successfully" in result["message"]
+        assert result["status"] == "success"
+        assert "data" in result
+        assert "message" in result["data"]
+        assert "File edited successfully" in result["data"]["message"]
         
         # Verify the edit
         content = test_file.read_text()
@@ -48,7 +49,8 @@ class TestFileEditor:
             "new"
         )
         
-        assert "error" in result
+        assert result["status"] == "error"
+        assert result["error"] is not None
         assert "File not found" in result["error"]
     
     @pytest.mark.asyncio
@@ -63,5 +65,6 @@ class TestFileEditor:
             "new text"
         )
         
-        assert "error" in result
+        assert result["status"] == "error"
+        assert result["error"] is not None
         assert "Text not found" in result["error"]

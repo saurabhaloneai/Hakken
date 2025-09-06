@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hakken"
 version = "0.1.0"
-description = "a agent which need too much context"
+description = "an agent that needs a lot of context"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}

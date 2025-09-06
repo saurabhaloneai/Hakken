@@ -22,46 +22,51 @@ class TestGrepSearch:
     async def test_search_in_file(self, grep_search, sample_file):
         result = await grep_search.act("class", str(sample_file))
         
-        assert "error" not in result
-        assert "results" in result
-        assert len(result["results"]) > 0
-        assert result["results"][0]["content"] == "class TestClass:"
+        assert result["status"] == "success"
+        assert "data" in result
+        assert "results" in result["data"]
+        assert len(result["data"]["results"]) > 0
+        assert result["data"]["results"][0]["content"] == "class TestClass:"
     
     @pytest.mark.asyncio
     async def test_search_in_directory(self, grep_search, sample_project):
         result = await grep_search.act("class", str(sample_project), ".py")
         
-        assert "error" not in result
-        assert "results" in result
-        assert result["total_matches"] > 0
+        assert result["status"] == "success"
+        assert "data" in result
+        assert "results" in result["data"]
+        assert result["data"]["total_matches"] > 0
         
         # Should find classes in the project
-        found_files = [r["file"] for r in result["results"]]
+        found_files = [r["file"] for r in result["data"]["results"]]
         assert any("main.py" in f for f in found_files)
     
     @pytest.mark.asyncio
     async def test_search_no_matches(self, grep_search, sample_file):
         result = await grep_search.act("nonexistent_pattern", str(sample_file))
         
-        assert "error" not in result
-        assert "results" in result
-        assert len(result["results"]) == 0
-        assert result["total_matches"] == 0
+        assert result["status"] == "success"
+        assert "data" in result
+        assert "results" in result["data"]
+        assert len(result["data"]["results"]) == 0
+        assert result["data"]["total_matches"] == 0
     
     @pytest.mark.asyncio
     async def test_search_nonexistent_path(self, grep_search):
         result = await grep_search.act("test", "/nonexistent/path")
         
-        assert "error" in result
+        assert result["status"] == "error"
+        assert result["error"] is not None
         assert "does not exist" in result["error"]
     
     @pytest.mark.asyncio
     async def test_search_with_extension_filter(self, grep_search, sample_project):
         result = await grep_search.act("import", str(sample_project), ".py")
         
-        assert "error" not in result
-        assert "results" in result
+        assert result["status"] == "success"
+        assert "data" in result
+        assert "results" in result["data"]
         
         # All results should be from .py files
-        for result_item in result["results"]:
+        for result_item in result["data"]["results"]:
             assert result_item["file"].endswith(".py")

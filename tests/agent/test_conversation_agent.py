@@ -51,7 +51,7 @@ class TestConversationAgent:
         expected_tools = {
             "cmd_runner", "todo_write", "smart_context_cropper",
             "delegate_task", "task_memory", "read_file",
-            "grep_search", "git_status", "edit_file", "web_search"
+            "grep_search", "git_tools", "edit_file", "web_search"
         }
         
         assert len(tools) == len(expected_tools)
