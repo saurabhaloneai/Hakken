@@ -1,109 +1,299 @@
-# Building Hakken: A Component-Wise AI Coding Agent
-*What happens when you get tired of switching between Claude, terminal, and your editor?*
+# Building Hakken: A Component-Wise AI Agent From Scratch
+*What happens when you get obsessed with understanding how AI agents actually work under the hood?*
 
 ## Intro
 
-The paper "Attention is All You Need"[1] changed everything, but honestly? Most AI coding assistants still feel like glorified autocomplete. You ask a question, get an answer, then manually copy-paste commands and fix the inevitable "oops I can't see your file structure" moments. It's 2024 and we're still doing the digital equivalent of passing notes in class.
+I'll be honest - I didn't build Hakken because the world needed another coding assistant. I built it because I was fucking tired of treating AI agents like black boxes. Everyone talks about "agentic AI" and "tool use" but nobody shows you the actual gnarly implementation details. How does streaming + function calling actually work? What happens when users interrupt mid-thought? How do you make an AI that remembers its todos and actually follows through?
 
-So I built Hakken - a coding agent that actually *does* things instead of just suggesting them. It streams responses in real-time, executes tools, manages todos, and handles interrupts. Think of it as Claude meets your terminal, with a healthy dose of "why doesn't this exist already?"
+So I said fuck it, let's build one from scratch and document every painful detail.
 
-By the end of this post, you'll understand how to build your own component-wise agent that doesn't just chat, but actually ships code. We'll dive into streaming architectures, tool execution patterns, and the surprisingly tricky art of making an AI that can be interrupted mid-thought.
+In this post, we'll implement a complete AI coding agent in pure Python - streaming responses, tool execution, todo management, real-time interrupts, and all the other good stuff. Why Python? Because I think it has good aesthetics. Also Python looks like pseudocode but it has some cool features like asyncio, rich terminals, and a metric ton of libraries which makes your agent go brr brr.
 
-## The Problem (Or: Why I Got Annoyed)
+This is one of the first posts that strongly focuses on the soul of actually understanding what's happening under the hood, which makes it more cool.
 
-Picture this: you're debugging a complex codebase. You ask Claude "what's wrong with my authentication flow?" It gives you a beautiful explanation but then says "I can't see your actual code." So you copy-paste seventeen files. It suggests changes. You manually apply them. Something breaks. Repeat.
+**Note:**
+- This post assumes familiarity with Python and basic understanding of LLMs/function calling
+- This implementation is for educational purposes - it covers all components but might not be production-ready
+- If you don't wanna read this amazing blog post then you can check out all the code at [this repository](https://github.com/saurabhaloneai/hakken)
 
-Meanwhile, your terminal is open in another window, your editor in a third, and you're playing the world's most tedious game of digital telephone.
+**AI Agent Architecture Overview:**
+At its core, Hakken is a recursive message processing system that generates responses one token at a time, executes tools when needed, and maintains conversation state - like having a conversation with a really smart terminal that can actually do shit.
 
-The core insight? **Modern AI coding assistants are read-only when they should be read-write.**
+So let's fucking go!! We're doing it, get your coffee!! First, we'll begin with understanding what an AI agent actually is.
 
-Jason Wei once wrote about giving language models "time to think"[2] - but what about giving them time to *act*? What if your AI could:
+## What Even Is An AI Agent?
 
-- Actually read your files (with line numbers!)
-- Execute git commands and see the real output
-- Edit code and run tests
-- Stream responses while thinking, letting you interrupt with new instructions
-- Keep track of todos and actually follow through on them
+Before we dive into implementation, let's get philosophical for a hot minute. What separates a chatbot from an "agent"? 
 
-That's Hakken. But let's talk about how you build something like this without losing your sanity.
+A chatbot is like that friend who gives great advice but never actually helps you move. An agent is the friend who shows up with a truck.
 
-## The Architecture (Or: How to Make an AI That Actually Does Things)
+The difference is **agency** - the ability to:
+1. **Perceive** the environment (read files, check git status)
+2. **Decide** what actions to take (should I run tests? edit this file?)
+3. **Act** on those decisions (actually execute the damn commands)
+4. **Learn** from the results (oh shit, that broke something)
 
-### The Core Loop
+Most "AI assistants" stop at step 2. They'll tell you what to do, but you're stuck being their hands and feet. Fuck that.
 
-Every AI agent needs a loop. Hakken's is beautifully simple:
+## The Architecture Deep Dive
+
+Here's the thing nobody tells you about building AI agents: it's not about the AI part, it's about the **message passing architecture**.
+
+At its core, every AI agent is just a fancy message queue processor:
 
 ```
-1. User says something
-2. Agent thinks (streams response)
-3. Agent calls tools if needed
-4. Tools execute and return data
-5. Agent sees tool results, thinks more
-6. Repeat until no more tools needed
-7. Wait for next user input
+[User Input] → [LLM Processing] → [Tool Calls] → [Tool Results] → [LLM Processing] → [Response]
+                     ↑                                                    ↓
+                     └─────────────── Recursive Loop ─────────────────────┘
 ```
 
-But the devil is in the implementation. Let's break it down:
+But the devil is in the implementation. Let's break down each component and see how it actually works.
 
-### Streaming + Function Calling: The Unholy Union
+## Message History: The Memory System
 
-Here's where things get spicy. OpenAI's streaming API can return both text content *and* function calls in the same response. Most people handle these separately, but that's wrong. You want to:
+First things first - your agent needs memory. Not just "remember what the user said" but "remember what I did, what worked, what failed, and what I'm supposed to do next."
+
+In pure Python, we represent this as a simple message list:
 
 ```python
-async for chunk in stream:
-    if chunk.choices[0].delta.content:
-        # Stream text to user immediately
-        print(chunk.choices[0].delta.content, end="", flush=True)
-    
-    if chunk.choices[0].delta.tool_calls:
-        # Accumulate tool calls
-        self._handle_tool_call_delta(chunk)
+messages = [
+    {"role": "system", "content": "You are Hakken, an AI coding agent..."},
+    {"role": "user", "content": "Help me debug this authentication issue"},
+    {"role": "assistant", "content": "I'll help you debug that. Let me first read your code.", "tool_calls": [...]},
+    {"role": "tool", "tool_call_id": "123", "name": "read_file", "content": "file contents..."},
+    {"role": "assistant", "content": "I see the issue. The JWT validation is missing..."}
+]
 ```
 
-The key insight: **stream the thinking, batch the doing**. Users see thoughts in real-time, but tools execute atomically.
+This is literally how every modern LLM API works. The trick is in **managing this list efficiently**:
 
-### Tool Registry: The Plugin Architecture
+```python
+class ConversationHistoryManager:
+    def __init__(self):
+        self.messages = []
+        self.token_count = 0
+    
+    def add_message(self, message):
+        self.messages.append(message)
+        self.token_count += self._estimate_tokens(message)
+        
+        # Auto-compress if we're getting too long
+        if self.token_count > self.max_tokens * 0.8:
+            self._compress_old_messages()
+    
+    def _compress_old_messages(self):
+        # Keep system prompt + recent messages, compress the middle
+        # This is where the magic happens - smart context management
+        pass
+```
 
-Instead of hardcoding tools, I built a registry system:
+The key insight: **treat context window like RAM**. You have a limited budget, spend it wisely.
+
+## Streaming: Making It Feel Alive
+
+Nobody wants to stare at a loading spinner for 30 seconds while the AI "thinks." Streaming makes your agent feel responsive and alive. But streaming + function calling? That's where shit gets weird.
+
+Here's the problem: OpenAI's streaming API can return both text content AND function calls in the same response. The text comes in chunks, but function calls come in fragments across multiple chunks. You might get:
+
+```json
+// Chunk 1
+{"delta": {"content": "I'll help you debug that. Let me "}}
+
+// Chunk 2  
+{"delta": {"content": "read your configuration file first."}}
+
+// Chunk 3
+{"delta": {"tool_calls": [{"index": 0, "function": {"name": "read_file"}}]}}
+
+// Chunk 4
+{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "{\"path\": \"/etc"}}]}}
+
+// Chunk 5
+{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "/config.json\"}"}}]}}
+```
+
+Most people fuck this up by trying to handle them separately. The right way:
+
+```python
+class StreamProcessor:
+    def __init__(self):
+        self.content_buffer = ""
+        self.tool_calls = []
+        
+    async def process_stream(self, stream):
+        for chunk in stream:
+            # Handle text content - stream immediately
+            if chunk.choices[0].delta.content:
+                content = chunk.choices[0].delta.content
+                print(content, end="", flush=True)
+                self.content_buffer += content
+            
+            # Handle tool calls - accumulate fragments
+            if chunk.choices[0].delta.tool_calls:
+                self._accumulate_tool_calls(chunk.choices[0].delta.tool_calls)
+        
+        # Return complete message when stream ends
+        return {
+            "content": self.content_buffer,
+            "tool_calls": self.tool_calls if self.tool_calls else None
+        }
+```
+
+The key insight: **stream the thinking, batch the doing**. Users see thoughts in real-time, but tools execute atomically when the stream completes.
+
+## Tool System: Where The Magic Happens
+
+This is where your agent gets its superpowers. Tools are what separate a chatbot from an actual agent. But here's the thing - most people overcomplicate this shit.
+
+A tool is just a function with a schema. That's it. Here's the interface:
 
 ```python
 class ToolInterface(ABC):
+    @staticmethod
+    @abstractmethod
+    def get_tool_name() -> str:
+        pass
+    
     @abstractmethod
     async def act(self, **kwargs) -> Any:
         pass
     
-    @abstractmethod 
+    @abstractmethod
     def json_schema(self) -> Dict:
         pass
+```
 
+Let's build a simple file reader tool:
+
+```python
+class FileReader(ToolInterface):
+    @staticmethod
+    def get_tool_name() -> str:
+        return "read_file"
+    
+    async def act(self, file_path: str, start_line=None, end_line=None):
+        try:
+            with open(file_path, 'r') as f:
+                lines = f.readlines()
+            
+            # Apply line range if specified
+            if start_line or end_line:
+                start_idx = (start_line - 1) if start_line else 0
+                end_idx = end_line if end_line else len(lines)
+                lines = lines[start_idx:end_idx]
+            
+            # Format with line numbers (crucial for AI)
+            formatted_lines = []
+            for i, line in enumerate(lines, start_line or 1):
+                formatted_lines.append(f"{i:6d}|{line.rstrip()}")
+            
+            return {
+                "content": '\n'.join(formatted_lines),
+                "file_path": file_path,
+                "total_lines": len(lines)
+            }
+        except Exception as e:
+            return {"error": f"Error reading file: {str(e)}"}
+    
+    def json_schema(self):
+        return {
+            "type": "function",
+            "function": {
+                "name": "read_file",
+                "description": "Read file contents with optional line range",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "file_path": {"type": "string", "description": "Path to file"},
+                        "start_line": {"type": "integer", "description": "Starting line"},
+                        "end_line": {"type": "integer", "description": "Ending line"}
+                    },
+                    "required": ["file_path"]
+                }
+            }
+        }
+```
+
+The registry is dead simple:
+
+```python
 class ToolRegistry:
+    def __init__(self):
+        self.tools = {}
+    
     def register_tool(self, tool: ToolInterface):
         self.tools[tool.get_tool_name()] = tool
+    
+    async def run_tool(self, tool_name: str, **kwargs):
+        tool = self.tools.get(tool_name)
+        if not tool:
+            return {"error": f"Tool {tool_name} not found"}
+        return await tool.act(**kwargs)
+    
+    def get_schemas(self):
+        return [tool.json_schema() for tool in self.tools.values()]
 ```
 
-Each tool is self-contained with its own schema. Want to add file editing? Write a tool. Need git integration? Write a tool. The agent doesn't care - it just calls `registry.run_tool(name, **args)`.
+This is basically the plugin architecture that VSCode uses, but for AI agents. Want to add git support? Write a tool. Need to run shell commands? Write a tool. The agent doesn't give a fuck about implementation details.
 
-This is basically the plugin architecture that VSCode uses, but for AI agents.
+## The Recursive Loop: Where Shit Gets Real
 
-### The Recursion Problem
+Here's where building AI agents becomes actually interesting. It's not just "call LLM, get response, done." It's a recursive process that can theoretically run forever.
 
-Here's where it gets mathematically interesting. When an agent calls tools, you need to:
+The loop looks like this:
 
-1. Execute the tool
-2. Add the result to conversation history  
-3. Call the LLM again with the updated history
-4. Handle any new tool calls
-5. Repeat until convergence
-
-This is essentially a fixed-point iteration:
-
+```python
+async def _recursive_message_handling(self):
+    while True:
+        # 1. Get LLM response (might include tool calls)
+        response = await self.call_llm(self.messages)
+        
+        # 2. Add response to history
+        self.messages.append(response)
+        
+        # 3. If no tool calls, we're done
+        if not response.tool_calls:
+            break
+            
+        # 4. Execute tools and add results to history
+        for tool_call in response.tool_calls:
+            result = await self.execute_tool(tool_call)
+            self.messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": json.dumps(result)
+            })
+        
+        # 5. Loop back - LLM will see tool results and continue
 ```
-f(messages) → (new_messages, tool_calls)
+
+This is essentially a fixed-point iteration: `f(messages) → (new_messages, tool_calls)` where convergence means `tool_calls = []`.
+
+But here's the scary part: **what if it never converges?** What if your agent gets stuck in a loop, calling the same failing tool over and over? You need circuit breakers:
+
+```python
+class CircuitBreaker:
+    def __init__(self, max_iterations=10, max_same_tool_failures=3):
+        self.max_iterations = max_iterations
+        self.max_same_tool_failures = max_same_tool_failures
+        self.tool_failure_counts = {}
+        self.iteration_count = 0
+    
+    def should_continue(self, tool_name=None, failed=False):
+        self.iteration_count += 1
+        
+        if self.iteration_count > self.max_iterations:
+            return False, "Max iterations reached"
+        
+        if failed and tool_name:
+            self.tool_failure_counts[tool_name] = self.tool_failure_counts.get(tool_name, 0) + 1
+            if self.tool_failure_counts[tool_name] > self.max_same_tool_failures:
+                return False, f"Tool {tool_name} failing repeatedly"
+        
+        return True, None
 ```
 
-Where convergence means `tool_calls = []`.
-
-But there's a catch: **what if it never converges?** You need circuit breakers, token limits, and graceful degradation. The math is simple; the engineering is not.
+The math is simple; the engineering is not.
 
 ### Interrupts: The Real-Time Challenge
 
@@ -551,18 +741,83 @@ Current agents are glorified text processors. The future is agents that understa
 - Performance implications of changes
 - Security vulnerabilities
 
-## Conclusion
+## What I Actually Learned (The Real Shit)
 
-Building Hakken taught me that the best AI tools don't just think - they act. The future of coding assistants isn't bigger language models; it's better integration between AI and the tools developers actually use.
+Building Hakken wasn't just about creating another AI tool - it was about understanding the underlying mechanics of intelligence and agency. Here's what I actually discovered:
 
-The code is open source[3]. The ideas are freely available. The question isn't whether someone will build better coding agents - it's whether you'll be the one to do it.
+### 1. It's All About Message Passing
 
-Now stop reading blogs and go build something.
+Every "intelligent" system is just sophisticated message routing. Whether it's neurons firing, microservices communicating, or an AI agent processing requests - it's all message passing at different scales. Understanding this fundamentally changed how I think about AI systems.
+
+### 2. The Hard Part Isn't The AI
+
+The LLM is the easy part. OpenAI already solved that problem. The hard part is:
+- Managing state across recursive calls
+- Handling edge cases gracefully  
+- Making streaming + function calling work together
+- Building robust error recovery
+- Creating intuitive user experiences
+
+### 3. Emergence Is Real But Predictable
+
+When you combine simple components (message history + tools + recursion), complex behaviors emerge. But it's not magic - it's just composition. Once you understand the patterns, you can predict and control the emergent behavior.
+
+### 4. Users Will Always Surprise You
+
+No matter how robust you think your system is, users will find ways to break it. They'll interrupt at weird times, feed malformed inputs, expect impossible things. Building for the happy path is easy; building for the edge cases is engineering.
+
+### 5. The Future Is Agentic
+
+We're moving from "AI that answers questions" to "AI that gets shit done." The next breakthrough isn't in model capabilities - it's in building agents that can reliably execute complex workflows in messy, real-world environments.
+
+## The Implementation Details That Matter
+
+If you want to build your own agent, here are the non-obvious things that matter:
+
+**Context Management**: Treat your context window like precious memory. Compress aggressively, but preserve the important bits.
+
+**Error Recovery**: Every tool can fail. Every network call can timeout. Plan for it.
+
+**State Management**: Keep your message history clean and your state machines simple.
+
+**User Experience**: Streaming isn't just about speed - it's about making the AI feel alive and responsive.
+
+**Circuit Breakers**: Infinite loops are real. Prevent them.
+
+## What's Next?
+
+This is just the beginning. Some ideas for where agents are heading:
+
+- **Multi-modal agents** that can see and hear, not just read text
+- **Persistent agents** that remember across sessions and learn from usage patterns  
+- **Collaborative agents** that work in teams to solve complex problems
+- **Embedded agents** that live inside your development environment
+
+The fundamental architecture will stay the same: message passing + tools + recursion. But the applications will blow your mind.
+
+## Why I'm Sharing This
+
+I could have kept this knowledge to myself and built a startup around it. But I believe the future is better when more people understand how these systems actually work. 
+
+The AI revolution isn't happening to us - it's happening through us. The more people who understand the underlying mechanics, the better tools we'll build and the more thoughtfully we'll integrate AI into our workflows.
+
+Plus, I'm fucking tired of people treating AI agents like black magic. It's just code. Good code, but still just code.
+
+## Go Build Something
+
+The code is open source. The ideas are freely available. The question isn't whether someone will build better coding agents - it's whether you'll be the one to do it.
+
+Stop reading blogs. Start shipping code.
 
 ---
 
-[1] https://arxiv.org/abs/1706.03762  
-[2] https://www.jasonwei.net/blog/some-intuitions-about-large-language-models  
-[3] https://github.com/saurabhaloneai/hakken
+**Links:**
+- [Hakken Repository](https://github.com/saurabhaloneai/hakken)
+- [OpenAI Function Calling Docs](https://platform.openai.com/docs/guides/function-calling)
+- [Rich Terminal Library](https://github.com/Textualize/rich)
 
-*"The best way to predict the future is to build it." - Alan Kay*
+**Thanks for reading!**
+
+If this helped you understand AI agents better, star the repo and build something cool with it.
+
+*"The best way to understand a system is to build it from scratch." - Me, apparently*
