@@ -83,7 +83,10 @@ class TaskDelegator(ToolInterface):
         try:
             system_prompt = self.subagent_manager.get_agent_prompt(agent_type)
             
-            self.ui_interface.print_info(f"Delegating task to {agent_type} agent...")
+            try:
+                self.ui_interface.display_info(f"Delegating task to {agent_type} agent...")
+            except Exception:
+                pass
             
             result = await self.conversation_agent.start_task(system_prompt, task_description)
             

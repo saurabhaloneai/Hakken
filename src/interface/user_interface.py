@@ -4,6 +4,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 from rich import box
+from rich.status import Status
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -28,21 +29,27 @@ class HakkenCodeUI:
         self.todos: List[Dict[str, Any]] = []
         self._streaming_content = ""
         self._is_streaming = False
+        self._spinner_active = False
+        self._status: Optional[Status] = None
         
-        # Exact colors from Hakken Code interface (dark theme)
+        # Modern cyberpunk-inspired color scheme
         self.colors = {
-            'orange': '#ff8c42',        # Orange star and borders
-            'blue': '#4a9eff',          # Blue accents  
-            'gray': '#6b7280',          # Muted gray text
-            'light_gray': '#9ca3af',    # Lighter gray
-            'white': '#f9fafb',         # Main white text
-            'green': '#10b981',         # Success green
-            'red': '#ef4444',           # Error red  
-            'yellow': '#f59e0b',        # Warning yellow
-            'dark_bg': '#111827',       # Dark background
-            'border': '#374151',        # Border color
-            'input_bg': '#1f2937',      # Input background
+            'orange': '#ff6b35',        # Vibrant coral-orange for star and accents
+            'blue': '#00d4ff',          # Electric cyan-blue for highlights  
+            'gray': '#8b949e',          # Soft muted gray for secondary text
+            'light_gray': '#c9d1d9',    # Light gray for subtle text
+            'white': '#f0f6fc',         # Clean bright white for main text
+            'green': '#00ff88',         # Electric green for success
+            'red': '#ff4757',           # Bright red for errors  
+            'yellow': '#ffd700',        # Golden yellow for warnings
+            'purple': '#b794f6',        # Soft purple for special elements
+            'pink': '#ff79c6',          # Accent pink for highlights
+            'dark_bg': '#0d1117',       # Deep dark background
+            'border': '#30363d',        # Subtle border color
+            'input_bg': '#161b22',      # Dark input background
         }
+        
+        # Spinner/status initialized lazily in start_spinner
     
     def display_welcome_header(self):
         """Display the exact welcome header from Hakken Code"""
@@ -159,6 +166,54 @@ class HakkenCodeUI:
         """Display info message"""
         self.console.print(f"[{self.colors['gray']}]{message}[/]")
     
+    def start_spinner(self, text: str = "Thinking", spinner_style: str = "dots"):
+        """Start animated spinner with custom text and style (uses Rich Status)."""
+        # Stop any existing status/spinner
+        if self._status is not None:
+            try:
+                self._status.stop()
+            except Exception:
+                pass
+            self._status = None
+
+        # Create and start a new Status with the requested spinner style
+        self._status = Status(text, console=self.console, spinner=spinner_style, spinner_style=self.colors['blue'])
+        self._status.start()
+        self._spinner_active = True
+    
+    def stop_spinner(self):
+        """Stop the animated spinner/status"""
+        if self._status is not None:
+            try:
+                self._status.stop()
+            except Exception:
+                pass
+            self._status = None
+        self._spinner_active = False
+    
+    def update_spinner_text(self, text: str):
+        """Update spinner/status text while it's running"""
+        if self._status is not None:
+            try:
+                self._status.update(text)
+            except Exception:
+                pass
+    
+    @staticmethod
+    def get_available_spinner_styles():
+        """Get list of available Rich spinner styles"""
+        # Run `python -m rich.spinner` to see all available styles
+        return [
+            "dots", "dots2", "dots3", "dots4", "dots5", "dots6", "dots7", "dots8", 
+            "dots9", "dots10", "dots11", "dots12", "line", "line2", "pipe", "simpleDots",
+            "simpleDotsScrolling", "star", "star2", "flip", "hamburger", "growVertical", 
+            "growHorizontal", "balloon", "balloon2", "noise", "bounce", "boxBounce", 
+            "boxBounce2", "triangle", "arc", "circle", "squareCorners", "circleQuarters", 
+            "circleHalves", "squish", "toggle", "toggle2", "toggle3", "toggle4", "toggle5", 
+            "toggle6", "toggle7", "toggle8", "toggle9", "toggle10", "toggle11", "toggle12", 
+            "toggle13", "arrow", "arrow2", "arrow3", "bouncingBar", "bouncingBall"
+        ]
+    
     async def confirm_action(self, message: str) -> bool:
         """Simple confirmation like Hakken Code"""
         self.console.print(f"\n{message}")
@@ -171,61 +226,67 @@ class HakkenCodeUI:
         return response.startswith('y')
     
     def display_todos(self, todos: Optional[List[Dict[str, Any]]] = None):
-        """Display todos in clean format"""
+        """Display todos in elegant, clean format with visual hierarchy"""
         todos_to_show = todos or self.todos
         
         if not todos_to_show:
-            self.display_info("No todos found.")
             return
         
-        self.console.print("\nTodos:")
+        # Create elegant header with modern styling
+        header_text = Text()
+        header_text.append("✦ ", style=f"bold {self.colors['pink']}")
+        header_text.append("Project Tasks", style=f"bold {self.colors['blue']}")
+        
+        # Create a subtle border panel for the todos
+        todo_content = Text()
+        
         for i, todo in enumerate(todos_to_show, 1):
             status = todo.get('status', 'pending')
             task = todo.get('task', todo.get('content', 'No description'))
             priority = todo.get('priority', 'normal')
             
-            # Simple status indicators with Hakken Code colors
+            # Modern vibrant status indicators
             if status == 'completed':
-                icon = f"[{self.colors['green']}]✓[/]"
+                icon = "✓"
+                icon_color = self.colors['green']
+                task_style = f"dim {self.colors['gray']}"
             elif status == 'in_progress':
-                icon = f"[{self.colors['yellow']}]●[/]"
+                icon = "◉"
+                icon_color = self.colors['purple']
+                task_style = self.colors['white']
             else:
-                icon = f"[{self.colors['gray']}]○[/]"
+                icon = "○"
+                icon_color = self.colors['gray']
+                task_style = self.colors['light_gray']
             
-            # Priority color
-            if priority == 'high':
-                task_color = self.colors['red']
-            elif priority == 'medium':
-                task_color = self.colors['yellow']
-            else:
-                task_color = self.colors['white']
+            # Add task with clean formatting
+            todo_content.append(f"  ", style="")
+            todo_content.append(icon, style=f"bold {icon_color}")
+            todo_content.append("  ", style="")
+            todo_content.append(task, style=task_style)
             
-            self.console.print(f"  {icon} [{task_color}]{task}[/]")
+            if i < len(todos_to_show):
+                todo_content.append("\n", style="")
         
+        # Create a clean panel with minimal borders
+        panel = Panel(
+            todo_content,
+            title=header_text,
+            title_align="left",
+            border_style=self.colors['border'],
+            box=box.ROUNDED,
+            padding=(0, 1),
+            width=80
+        )
+        
+        self.console.print()
+        self.console.print(panel)
         self.console.print()
     
     def update_todos(self, todos: List[Dict[str, Any]]):
         """Update the todos list"""
         self.todos = todos
     
-    def add_todo(self, task: str, priority: str = "normal", status: str = "pending"):
-        """Add a new todo"""
-        todo = {
-            'id': len(self.todos) + 1,
-            'task': task,
-            'priority': priority,
-            'status': status
-        }
-        self.todos.append(todo)
-        return todo
-    
-    def update_todo_status(self, todo_id: int, status: str) -> bool:
-        """Update todo status"""
-        for todo in self.todos:
-            if todo.get('id') == todo_id:
-                todo['status'] = status
-                return True
-        return False
     
     def display_tool_execution(self, tool_name: str, args: dict, status: str = "running"):
         """Display tool execution status"""
@@ -261,17 +322,6 @@ class HakkenCodeUI:
             except (ValueError, KeyboardInterrupt):
                 self.display_error("Invalid input.")
     
-    def clear_screen(self):
-        """Clear the console"""
-        self.console.clear()
-    
-    def get_conversation_context(self, max_messages: int = 20) -> List[Dict[str, str]]:
-        """Get conversation history for AI context"""
-        recent_messages = self.conversation[-max_messages:]
-        return [
-            {"role": msg.role, "content": msg.content}
-            for msg in recent_messages
-        ]
     
     def display_status(self, context_usage: str = "", cost: str = ""):
         """Display system status"""
@@ -296,302 +346,3 @@ class HakkenCodeUI:
         # Display credit warning immediately after
         self.display_credit_warning()
 
-
-class SimpleUI:
-    """Clean, minimal UI inspired by Hakken Code interface with dark theme"""
-    
-    def __init__(self, console: Optional[Console] = None):
-        self.console = console or Console()
-        self.conversation: List[Message] = []
-        self.todos: List[Dict[str, Any]] = []
-        self._streaming_content = ""
-        self._is_streaming = False
-        
-        # Dark theme colors matching Hakken Code
-        self.colors = {
-            'user': '#4a9eff',          # Blue for user input
-            'assistant': '#f9fafb',     # White for assistant
-            'muted': '#6b7280',         # Gray for secondary text
-            'warning': '#f59e0b',       # Orange for warnings
-            'error': '#ef4444',         # Red for errors
-            'success': '#10b981',       # Green for success
-            'accent': '#ff8c42',        # Orange accent like Hakken Code
-        }
-    
-    def clear_screen(self):
-        """Clear the console"""
-        self.console.clear()
-    
-    def print_welcome(self):
-        """Display welcome message like Hakken Code with dark theme"""
-        welcome_text = Text()
-        welcome_text.append("✱ Welcome to Your Assistant!\n\n", style=f"bold {self.colors['accent']}")
-        welcome_text.append("/help for help, /status for your current setup\n\n", style=self.colors['muted'])
-        welcome_text.append("Ready to help with your tasks!", style=self.colors['assistant'])
-        
-        # Dark themed bordered box like Hakken
-        panel = Panel(
-            welcome_text,
-            border_style=self.colors['accent'],
-            box=box.ROUNDED,
-            padding=(1, 2)
-        )
-        self.console.print(panel)
-        self.console.print()
-    
-    async def get_user_input(self, prompt: str = "") -> str:
-        """Get user input with Hakken-like styling"""
-        # Show prompt like Hakken: "> " 
-        prompt_text = Text()
-        prompt_text.append("> ", style=f"bold {self.colors['user']}")
-        self.console.print(prompt_text, end="")
-        
-        try:
-            user_input = input("").strip()
-            if user_input:
-                # Add to conversation history
-                self.conversation.append(Message('user', user_input))
-                # Don't redisplay - input is already visible
-            return user_input
-        except (KeyboardInterrupt, EOFError):
-            raise KeyboardInterrupt()
-    
-    def start_assistant_response(self):
-        """Start assistant response display"""
-        self._is_streaming = True
-        self._streaming_content = ""
-        self.console.print()  # New line before assistant response
-    
-    def stream_content(self, chunk: str):
-        """Stream content chunk by chunk"""
-        if self._is_streaming:
-            self._streaming_content += chunk
-            print(chunk, end="", flush=True)
-    
-    def finish_assistant_response(self):
-        """Finish assistant response and add to conversation"""
-        if self._is_streaming and self._streaming_content:
-            self.conversation.append(Message('assistant', self._streaming_content))
-            self.console.print()  # New line after response
-            self._streaming_content = ""
-        self._is_streaming = False
-    
-    def display_assistant_message(self, content: str):
-        """Display complete assistant message (non-streaming)"""
-        if content and content.strip():
-            self.console.print()
-            self.console.print(content, style=self.colors['assistant'])
-            self.console.print()
-            self.conversation.append(Message('assistant', content))
-    
-    def display_error(self, message: str):
-        """Display error message"""
-        error_text = Text()
-        error_text.append("Error: ", style=f"bold {self.colors['error']}")
-        error_text.append(message, style=self.colors['error'])
-        self.console.print(error_text)
-    
-    def display_success(self, message: str):
-        """Display success message"""
-        success_text = Text()
-        success_text.append("✓ ", style=self.colors['success'])
-        success_text.append(message, style=self.colors['success'])
-        self.console.print(success_text)
-    
-    def display_warning(self, message: str):
-        """Display warning message"""
-        warning_text = Text()
-        warning_text.append("⚠ ", style=self.colors['warning'])
-        warning_text.append(message, style=self.colors['warning'])
-        self.console.print(warning_text)
-    
-    def display_info(self, message: str):
-        """Display info message"""
-        self.console.print(f"[{self.colors['muted']}]{message}[/]")
-    
-    async def confirm_action(self, message: str) -> bool:
-        """Simple yes/no confirmation"""
-        warning_text = Text()
-        warning_text.append(f"\n{message}", style=self.colors['warning'])
-        self.console.print(warning_text)
-        
-        prompt_text = Text()
-        prompt_text.append("Continue? (y/n): ", style=self.colors['muted'])
-        self.console.print(prompt_text, end="")
-        
-        response = input("").strip().lower()
-        return response.startswith('y')
-    
-    def display_todos(self, todos: Optional[List[Dict[str, Any]]] = None):
-        """Display todos in a clean format matching Hakken Code theme"""
-        todos_to_show = todos or self.todos
-        
-        if not todos_to_show:
-            self.console.print(f"[{self.colors['muted']}]No todos found.[/]")
-            return
-        
-        # Use simple list format like Hakken Code
-        self.console.print("\nTodos:")
-        
-        status_icons = {
-            "completed": f"[{self.colors['success']}]✓[/]",
-            "in_progress": f"[{self.colors['warning']}]●[/]", 
-            "pending": f"[{self.colors['muted']}]○[/]"
-        }
-        
-        priority_colors = {
-            "high": self.colors['error'],
-            "medium": self.colors['warning'],
-            "normal": self.colors['assistant'],
-            "low": self.colors['muted']
-        }
-        
-        for todo in todos_to_show:
-            status = todo.get('status', 'pending')
-            task = todo.get('task', todo.get('content', 'No description'))
-            priority = todo.get('priority', 'normal')
-            
-            status_icon = status_icons.get(status, "○")
-            priority_color = priority_colors.get(priority, self.colors['assistant'])
-            
-            todo_text = Text()
-            todo_text.append("  ", style="")
-            todo_text.append(status_icon)
-            todo_text.append(" ", style="")
-            todo_text.append(task, style=priority_color)
-            
-            self.console.print(todo_text)
-        
-        self.console.print()
-    
-    # ... rest of the methods remain the same but with updated color scheme
-
-
-# Maintain compatibility with existing code
-class UserInterface:
-    """Wrapper to maintain compatibility with existing code"""
-    
-    def __init__(self, console: Optional[Console] = None):
-        self.ui = HakkenCodeUI(console)  # Use HakkenCodeUI for exact match
-        self.console = self.ui.console
-        self._interrupt_callbacks = []
-    
-    async def get_chat_input(self, prompt: str = "") -> str:
-        return await self.ui.get_user_input(prompt)
-    
-    def display_assistant_response_in_chat(self, content: str):
-        self.ui.display_assistant_message(content)
-    
-    def start_stream_display(self):
-        self.ui.start_assistant_response()
-    
-    def print_streaming_content(self, chunk: str):
-        self.ui.stream_content(chunk)
-    
-    def stop_stream_display(self):
-        self.ui.finish_assistant_response()
-    
-    def print_error(self, message: str):
-        self.ui.display_error(message)
-    
-    def print_success(self, message: str):
-        self.ui.display_success(message)
-    
-    def print_info(self, message: str):
-        self.ui.display_info(message)
-    
-    def print_warning(self, message: str):
-        self.ui.display_warning(message)
-    
-    def print_assistant_message(self, content: str, emoji: str = "", use_chat: bool = False):
-        self.ui.display_assistant_message(content)
-    
-    def display_todos(self, todos: List[Dict[str, Any]]):
-        self.ui.display_todos(todos)
-    
-    async def confirm_action(self, message: str) -> tuple[bool, str]:
-        result = await self.ui.confirm_action(message)
-        return result, ""
-    
-    def display_welcome_header(self):
-        self.ui.display_welcome_header()
-    
-    def display_context_info(self, context_usage: str, cost: str):
-        self.ui.display_status(context_usage, cost)
-    
-    def add_interrupt_callback(self, callback):
-        self._interrupt_callbacks.append(callback)
-    
-    def start_interrupt_mode(self):
-        pass  # Simplified for new UI
-    
-    def stop_interrupt_mode(self):
-        pass  # Simplified for new UI
-    
-    async def check_for_interrupts(self):
-        pass  # Simplified for new UI
-    
-    async def wait_for_user_approval(self, content: str, emoji: str = "") -> tuple[bool, str]:
-        result = await self.ui.confirm_action(f"Approve: {content}")
-        return result, ""
-    
-    async def select_from_options(self, prompt: str, options: dict, emoji: str = "") -> tuple[str, dict, str]:
-        choices = list(options.keys())
-        selected = await self.ui.get_choice(prompt, choices)
-        return selected, options[selected], ""
-
-
-# Compatibility wrapper for existing code  
-class UIManager:
-    """Wrapper to maintain compatibility with existing code"""
-    
-    def __init__(self):
-        self.ui = HakkenCodeUI()
-        self.console = self.ui.console
-    
-    async def get_chat_input(self, prompt: str = "") -> str:
-        return await self.ui.get_user_input(prompt)
-    
-    def display_assistant_response_in_chat(self, content: str):
-        self.ui.display_assistant_message(content)
-    
-    def start_stream_display(self):
-        self.ui.start_assistant_response()
-    
-    def print_streaming_content(self, chunk: str):
-        self.ui.stream_content(chunk)
-    
-    def stop_stream_display(self):
-        self.ui.finish_assistant_response()
-    
-    def print_error(self, message: str):
-        self.ui.display_error(message)
-    
-    def print_success(self, message: str):
-        self.ui.display_success(message)
-    
-    def print_info(self, message: str):
-        self.ui.display_info(message)
-    
-    def display_todos(self, todos: List[Dict[str, Any]]):
-        self.ui.display_todos(todos)
-    
-    async def confirm_action(self, message: str) -> tuple[bool, str]:
-        result = await self.ui.confirm_action(message)
-        return result, ""
-    
-    def display_welcome_header(self):
-        self.ui.display_welcome_header()
-    
-    def display_context_info(self, context_usage: str, cost: str):
-        self.ui.display_status(context_usage, cost)
-    
-    def display_credit_warning(self, message: str = ""):
-        self.ui.display_credit_warning(message)
-    
-    def display_shortcuts_help(self):
-        self.ui.display_shortcuts_help()
-    
-    def show_user_message_with_credit_warning(self, user_message: str):
-        """Helper method to replicate the exact interaction from the images"""
-        self.ui.show_user_message_with_credit_warning(user_message)

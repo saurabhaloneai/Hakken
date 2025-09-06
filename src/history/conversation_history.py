@@ -1,5 +1,4 @@
 
-from abc import ABC, abstractmethod
 import copy
 from dataclasses import dataclass
 import os
@@ -41,54 +40,20 @@ class CropDirection(str, Enum):
     BOTTOM = "bottom"
 
 
-class BaseHistoryManager(ABC):
-    
-    def __init__(self):
-        self.messages_history = [[]]
-        self.history_token_usage = []
-
-    @abstractmethod
-    def add_message(self, message) -> None:
-        pass
-
-    @abstractmethod
-    def update_token_usage(self, token_usage) -> None:
-        pass
-
-    @abstractmethod
-    def get_current_messages(self) -> Any:
-        pass
-
-    def auto_messages_compression(self) -> None:
-        if self._requires_compression():
-            self._compress_current_message()
-
-    @abstractmethod
-    def _requires_compression(self) -> bool:
-        pass
-
-    @abstractmethod
-    def _compress_current_message(self) -> None:
-        pass
-
-    @abstractmethod
-    def start_new_chat(self) -> None:
-        pass
-
-    @abstractmethod
-    def finish_chat_get_response(self) -> str:
-        pass
-
-
-class ConversationHistoryManager(BaseHistoryManager):
+class ConversationHistoryManager:
     
     def __init__(self, config: HistoryConfiguration, ui_interface=None):
-        super().__init__()
+        self.messages_history = [[]]
+        self.history_token_usage = []
         self.config = config
         self.ui_interface = ui_interface
 
     def add_message(self, message) -> None:
         self.messages_history[-1].append(message)
+
+    def auto_messages_compression(self) -> None:
+        if self._requires_compression():
+            self._compress_current_message()
 
     def crop_message(self, crop_direction: CropDirection, crop_amount: int) -> str:  
         current_messages = self.messages_history[-1]
@@ -165,7 +130,10 @@ class ConversationHistoryManager(BaseHistoryManager):
 
     def _compress_current_message(self) -> None:
         if self.ui_interface:
-            self.ui_interface.print_assistant_message("History context too long, compressing...")
+            try:
+                self.ui_interface.display_info("History context too long, compressing...")
+            except Exception:
+                pass
 
         current_messages = self.messages_history[-1]
         user_indices = self._get_user_message_indices(current_messages)
