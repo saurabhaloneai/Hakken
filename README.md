@@ -1,4 +1,4 @@
-# hakken
+# hakken | 発見
 > [!IMPORTANT]
 > hakken is an ai agent which needs a lot of context to provide `good` intelligent assistance.
 > 
