@@ -39,13 +39,11 @@ sequenceDiagram
     AG->>HI: add user message
     AG->>HI: auto compress if needed
     AG->>TR: get tool schemas (deterministic)
-    rect #F0F8FF
-      AG->>AC: chat.completions.create(..., tool_choice=auto, stream=true)
-      AC-->>AG: content deltas (stream)
-      AG-->>UI: stream chunks
-      AC-->>AG: final assistant message (+ optional tool_calls)
-      AG->>HI: add assistant message
-    end
+    AG->>AC: chat.completions.create(..., tool_choice=auto, stream=true)
+    AC-->>AG: content deltas (stream)
+    AG-->>UI: stream chunks
+    AC-->>AG: final assistant message (+ optional tool_calls)
+    AG->>HI: add assistant message
     alt has tool_calls
       loop each tool_call
         opt approval required
