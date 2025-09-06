@@ -2,7 +2,7 @@
 > [!IMPORTANT]
 > hakken is an ai agent which needs a lot of context to provide `good` intelligent assistance.
 > 
-> this is like a claude-code but `opensource` hehe and i have build this from scratch. 
+> this is like a claude-code but `opensource` hehe and i have built this from scratch. 
 
 ![img](assets/images/interface.png)
 
@@ -10,7 +10,9 @@
 
 > `chat` — context awareness and message compression
 >
-> `streaming` — real‑time interrupts (/stop or inline)
+> `todo` - it plan first ; create todo list and follow it. 
+> 
+> `streaming` — real‑time interrupts (/stop or inline) ; interrupts to change the plan
 >
 > `tools` — terminal commands, file read/edit, project grep, git ops, todos, task memory, task delegation
 >
@@ -19,8 +21,6 @@
 > `tokens` — budgeting with context window limits and output caps
 >
 > `status` — cost tracking, status display
->
-> `ui` — rich color, spinners, panels, clean streaming
 
 ## Installation
 
