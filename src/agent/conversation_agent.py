@@ -55,6 +55,7 @@ class ConversationAgent:
         self.interrupt_manager = InterruptConfigManager()
       
         self._is_in_task = False
+        self._pending_user_instruction: str = ""
     
     def _register_tools(self) -> None:
        
@@ -196,7 +197,8 @@ class ConversationAgent:
                 for chunk in stream_generator:
                     interrupt_text = self._safe_poll_interrupt()
                     if interrupt_text is not None:
-                        if interrupt_text.strip() == "/":
+                        stripped = interrupt_text.strip()
+                        if stripped == "/":
                             interrupted = True
                             spinner_stopped = self._ensure_spinner_stopped(spinner_stopped)
                             instr = self._capture_instruction_interactively()
@@ -207,11 +209,18 @@ class ConversationAgent:
                                     pass
                                 await self._handle_user_interrupt(instr)
                             break
-                        else:
+                        elif stripped.lower() == "/stop":
                             interrupted = True
                             spinner_stopped = self._ensure_spinner_stopped(spinner_stopped)
                             await self._handle_user_interrupt(interrupt_text)
                             break
+                        else:
+                            # Queue the instruction without interrupting the current flow
+                            self._pending_user_instruction = stripped
+                            try:
+                                self.ui_interface.display_info("instruction queued; will apply after this step")
+                            except Exception:
+                                pass
                     if not spinner_stopped:
                         # Stop spinner on first output
                         spinner_stopped = self._ensure_spinner_stopped(spinner_stopped)
@@ -292,6 +301,19 @@ class ConversationAgent:
             await self._recursive_message_handling(show_thinking=False)
         else:
             self._print_context_window_and_total_cost()
+            # If there is a queued instruction and no tool run followed,
+            # inject it as a follow-up user message to be handled immediately.
+            pending_after = self._pending_user_instruction.strip() if isinstance(getattr(self, "_pending_user_instruction", ""), str) else ""
+            if pending_after:
+                self._pending_user_instruction = ""
+                interrupt_message = {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": pending_after}
+                    ]
+                }
+                self.add_message(interrupt_message)
+                await self._recursive_message_handling(show_thinking=True)
         self._stop_interrupt_listener_safely()
 
     def _print_context_window_and_total_cost(self) -> None:
@@ -391,6 +413,12 @@ class ConversationAgent:
         return response_message.tool_calls if hasattr(response_message, 'tool_calls') and response_message.tool_calls else []
 
     async def _handle_tool_calls(self, tool_calls) -> None:
+        # Capture any queued instruction to pass into the next tool execution
+        pending_for_tools = self._pending_user_instruction.strip() if isinstance(getattr(self, "_pending_user_instruction", ""), str) else ""
+        if pending_for_tools:
+            # Clear the queue so it's not applied twice
+            self._pending_user_instruction = ""
+
         for i, tool_call in enumerate(tool_calls):
             is_last_tool = (i == len(tool_calls) - 1)
             try:
@@ -409,7 +437,7 @@ class ConversationAgent:
                 continue
 
             should_execute = True
-            user_response = ""
+            user_response = pending_for_tools
             
             if self.interrupt_manager.requires_approval(tool_call.function.name, args):
                 approval_content = f"Tool: {tool_call.function.name}, args: {args}"

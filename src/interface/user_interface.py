@@ -165,7 +165,7 @@ class HakkenCodeUI:
         if self._interrupt_hint_shown:
             return
         try:
-            self.display_info("Type /stop to interrupt, or type instructions and press Enter to inject.")
+            self.display_info("type instructions and press enter to queue; use /stop to interrupt now.")
         except Exception:
             pass
         finally:
@@ -325,15 +325,59 @@ class HakkenCodeUI:
         ]
     
     async def confirm_action(self, message: str) -> bool:
-        """Simple confirmation like Hakken Code"""
-        self.console.print(f"\n{message}")
-        
-        prompt_text = Text()
-        prompt_text.append("Continue? (y/n): ", style=self.colors['gray'])
-        self.console.print(prompt_text, end="")
-        
-        response = input("").strip().lower()
-        return response.startswith('y')
+        """user-friendly yes/no confirmation with non-interactive fallback"""
+        try:
+            # non-interactive fallback (e.g., running inside editor without a tty)
+            if not sys.stdin or not sys.stdin.isatty():
+                auto_approve = os.environ.get("HAKKEN_AUTO_APPROVE", "").strip().lower()
+                approval_default = os.environ.get("HAKKEN_APPROVAL_DEFAULT", "").strip().lower()
+                if auto_approve in ("1", "true", "yes", "y") or approval_default == "y":
+                    self.display_info("auto-approving (non-interactive). set HAKKEN_APPROVAL_DEFAULT=n to deny.")
+                    return True
+                self.display_info("auto-denying (non-interactive). set HAKKEN_AUTO_APPROVE=1 to allow.")
+                return False
+
+            # interactive prompt with clearer ui and choices
+            self.console.print()
+            title_text = Text()
+            title_text.append("approval required", style=f"bold {self.colors['orange']}")
+            content_text = Text()
+            content_text.append(message, style=self.colors['light_gray'])
+            panel = Panel(
+                content_text,
+                title=title_text,
+                title_align="left",
+                border_style=self.colors['border'],
+                box=box.ROUNDED,
+                padding=(0, 1),
+                width=80,
+            )
+            self.console.print(panel)
+
+            # compute default from env
+            default_yes = os.environ.get("HAKKEN_APPROVAL_DEFAULT", "").strip().lower() == "y" or \
+                           os.environ.get("HAKKEN_AUTO_APPROVE", "").strip().lower() in ("1", "true", "yes", "y")
+
+            # show choices
+            self.console.print(Text().append("  1. yes", style=self.colors['white']))
+            self.console.print(Text().append("  2. no", style=self.colors['white']))
+
+            while True:
+                prompt_text = Text()
+                hint = "[Y/n]" if default_yes else "[y/N]"
+                prompt_text.append(f"approve? {hint}: ", style=self.colors['gray'])
+                self.console.print(prompt_text, end="")
+
+                response = input("").strip().lower()
+                if response == "":
+                    return default_yes
+                if response in ("y", "yes", "1"):
+                    return True
+                if response in ("n", "no", "2"):
+                    return False
+                self.display_error("please enter y or n (or 1 or 2).")
+        except (KeyboardInterrupt, EOFError):
+            return False
     
     def display_todos(self, todos: Optional[List[Dict[str, Any]]] = None):
         """Display todos in elegant, clean format with visual hierarchy"""
