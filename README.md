@@ -37,22 +37,35 @@ sequenceDiagram
 
     UI->>AG: user input
     AG->>HI: add user message
-    AG->>PM: get system reminder (todo status)
     AG->>HI: auto compress if needed
-    AG->>AC: chat.completions.create(messages, tools, tool_choice=auto, stream=true)
-    AC-->>AG: content deltas (stream)
-    AG-->>UI: stream chunks
-    AC-->>AG: final assistant message (+ optional tool_calls)
-    AG->>HI: add assistant message
+    AG->>TR: get tool schemas (deterministic)
+    rect #F0F8FF
+      AG->>AC: chat.completions.create(..., tool_choice=auto, stream=true)
+      AC-->>AG: content deltas (stream)
+      AG-->>UI: stream chunks
+      AC-->>AG: final assistant message (+ optional tool_calls)
+      AG->>HI: add assistant message
+    end
     alt has tool_calls
       loop each tool_call
+        opt approval required
+          AG->>UI: approval panel [yes/no/always]
+          UI-->>AG: decision (remember "always")
+        end
         AG->>TR: run_tool(name, args)
-        TR-->>AG: tool result json
+        TR-->>AG: tool result (may include file paths)
+        opt last tool in batch
+          AG->>PM: get reminder (todos+memory+env)
+        end
         AG->>HI: add role=tool message (+ reminder on last)
       end
       AG->>AC: call llm again with updated messages
     else no tool_calls
       AG-->>UI: display status (context %, cost)
+      opt narrated action but no tools
+        AG->>HI: inject nudge (e.g., use read_file ...)
+        AG->>AC: call llm again
+      end
     end
 ```
 
