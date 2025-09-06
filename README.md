@@ -2,6 +2,10 @@
 > [!IMPORTANT]
 > An AI agent that needs a lot of context to provide intelligent assistance.
 
+## agent capabilities
+
+natural chat with context awareness and message compression · live streaming with real‑time interrupts (/stop or inline) · safe tool approvals when needed · tool execution: terminal commands, file read, file edit, project grep, git ops, todos, task memory, task delegation · smart context cropping and prompt management · token budgeting with context window limits and output caps · cost tracking and status display · rich ui with color, spinners, panels, and clean streaming
+
 ## Installation
 
 ### Option 1: Global Install (Use from anywhere)
@@ -67,6 +71,7 @@ uv run hakken
 The agent will start an interactive conversation where you can ask questions and get contextual assistance.
 
 **Important:** Make sure your `.env` file is properly configured before running hakken!
+
 
 
 ## todo 
