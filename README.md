@@ -102,7 +102,7 @@ uv sync
    # Get a free API key from https://openrouter.ai/
    OPENAI_API_KEY=your-openrouter-api-key-here
    OPENAI_BASE_URL=https://openrouter.ai/api/v1
-   OPENAI_MODEL=meta-llama/llama-3.1-8b-instruct:free
+   OPENAI_MODEL=z-ai/glm-4.5-air:free
    ```
 
    **Option B: Using OpenAI directly**
