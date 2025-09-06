@@ -1,4 +1,7 @@
 import os
+import sys
+import threading
+import queue
 from typing import Optional, List, Dict, Any
 from rich.console import Console
 from rich.panel import Panel
@@ -31,6 +34,10 @@ class HakkenCodeUI:
         self._is_streaming = False
         self._spinner_active = False
         self._status: Optional[Status] = None
+        self._interrupt_thread: Optional[threading.Thread] = None
+        self._interrupt_queue: "queue.Queue[str]" = queue.Queue()
+        self._interrupt_stop = threading.Event()
+        self._interrupt_hint_shown = False
         
         # Modern cyberpunk-inspired color scheme
         self.colors = {
@@ -93,7 +100,7 @@ class HakkenCodeUI:
         self.console.print(warning_text)
         self.console.print()
     
-    async def get_user_input(self, prompt: str = "") -> str:
+    async def get_user_input(self, prompt: str = "", add_to_history: bool = True) -> str:
         """Get user input with exact Hakken Code styling"""
         # Show the exact prompt style: "> " with cursor
         try:
@@ -103,8 +110,8 @@ class HakkenCodeUI:
             self.console.print(prompt_text, end="")
             
             user_input = input("").strip()
-            if user_input:
-                # Add to conversation history
+            if user_input and add_to_history:
+                # Add to conversation history if requested
                 self.conversation.append(Message('user', user_input))
             return user_input
         except (KeyboardInterrupt, EOFError):
@@ -125,6 +132,18 @@ class HakkenCodeUI:
         if self._is_streaming:
             self._streaming_content += chunk
             print(chunk, end="", flush=True)
+
+    def pause_stream_display(self):
+        """Temporarily pause display output (visual separation for instruction mode)."""
+        if self._is_streaming:
+            print()  # Ensure clean newline separation
+            self._is_streaming = False
+            # Do not save partial stream into history yet
+            # Content remains in _streaming_content if needed for later
+
+    def resume_stream_display(self):
+        """Resume display output after instruction capture."""
+        self._is_streaming = True
     
     def finish_assistant_response(self):
         """Finish streaming and save to conversation"""
@@ -140,6 +159,31 @@ class HakkenCodeUI:
             print(content)
             print()
             self.conversation.append(Message('assistant', content))
+
+    def display_interrupt_hint(self):
+        """Show a one-line hint for real-time interrupts during streaming/tool runs"""
+        if self._interrupt_hint_shown:
+            return
+        try:
+            self.display_info("Type /stop to interrupt, or type instructions and press Enter to inject.")
+        except Exception:
+            pass
+        finally:
+            # Mark as shown to avoid repeated prints during the same active session
+            self._interrupt_hint_shown = True
+
+    def capture_instruction(self) -> Optional[str]:
+        """Prompt user in a clean input mode while streaming is paused.
+        Returns the instruction string or None if empty.
+        """
+        try:
+            prompt_text = Text()
+            prompt_text.append("/ instruction: ", style=f"bold {self.colors['white']}")
+            self.console.print(prompt_text, end="")
+            text = input("").strip()
+            return text if text else None
+        except (KeyboardInterrupt, EOFError):
+            return None
     
     def display_error(self, message: str):
         """Display error message with Hakken Code styling"""
@@ -198,6 +242,72 @@ class HakkenCodeUI:
                 self._status.update(text)
             except Exception:
                 pass
+
+    # --- Real-time interrupt support ---
+    def start_interrupt_listener(self):
+        """Start a background thread that captures user input lines without blocking the main loop."""
+        # If already running, don't start another
+        if self._interrupt_thread and self._interrupt_thread.is_alive():
+            return
+
+        # Clear old signals
+        with self._interrupt_queue.mutex:
+            self._interrupt_queue.queue.clear()
+        self._interrupt_stop.clear()
+
+        def _reader():
+            # Blocking line reads; push to queue until stop requested
+            while not self._interrupt_stop.is_set():
+                try:
+                    line = sys.stdin.readline()
+                except Exception:
+                    break
+                if line is None:
+                    break
+                text = line.strip()
+                if text:
+                    # Avoid spamming identical repeated hints
+                    self._interrupt_queue.put(text)
+
+        self._interrupt_thread = threading.Thread(target=_reader, daemon=True)
+        self._interrupt_thread.start()
+
+    def stop_interrupt_listener(self):
+        """Stop the background interrupt listener thread."""
+        try:
+            self._interrupt_stop.set()
+            if self._interrupt_thread and self._interrupt_thread.is_alive():
+                # We cannot easily interrupt readline; rely on user to press Enter or end when stdin closes
+                # Still join briefly without blocking indefinitely
+                self._interrupt_thread.join(timeout=0.05)
+        except Exception:
+            pass
+        finally:
+            # Allow hint to display again for the next session/turn
+            self._interrupt_hint_shown = False
+
+    def poll_interrupt(self) -> Optional[str]:
+        """Non-blocking read of any user-provided interrupt text."""
+        try:
+            return self._interrupt_queue.get_nowait()
+        except queue.Empty:
+            return None
+
+    def flush_interrupts(self):
+        """Clear any pending interrupt lines."""
+        try:
+            with self._interrupt_queue.mutex:
+                self._interrupt_queue.queue.clear()
+        except Exception:
+            pass
+
+    def wait_for_interrupt(self, timeout: Optional[float] = None) -> Optional[str]:
+        """Block until the next interrupt line arrives (from background listener)."""
+        try:
+            line = self._interrupt_queue.get(timeout=timeout)
+            return line.strip() if isinstance(line, str) else None
+        except queue.Empty:
+            return None
     
     @staticmethod
     def get_available_spinner_styles():

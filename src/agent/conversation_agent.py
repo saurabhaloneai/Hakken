@@ -27,14 +27,14 @@ if str(current_dir) not in sys.path:
 
 
 class AgentConfiguration:
-  
+
     def __init__(self):
         self.api_config = APIConfiguration.from_environment()
         self.history_config = HistoryConfiguration.from_environment()
 
 
 class ConversationAgent:
-    
+  
     def __init__(self, config: Optional[AgentConfiguration] = None):
     
         self.config = config or AgentConfiguration()
@@ -55,8 +55,8 @@ class ConversationAgent:
       
         self._is_in_task = False
     
-    def _register_tools(self):
-        # Core tools
+    def _register_tools(self) -> None:
+       
         cmd_runner = CommandRunner()
         self.tool_registry.register_tool(cmd_runner)
         
@@ -86,14 +86,14 @@ class ConversationAgent:
         self.tool_registry.register_tool(file_editor)
 
     @property
-    def messages(self) -> List[Dict]: return self.history_manager.get_current_messages()
+    def messages(self) -> List[Dict]:
+        return self.history_manager.get_current_messages()
     
     def add_message(self, message: Dict) -> None:
         self.history_manager.add_message(message)
 
     async def start_conversation(self) -> None:
         try:
-            # Display welcome header with Rich formatting
             self.ui_interface.display_welcome_header()
             
             system_message = {
@@ -105,7 +105,6 @@ class ConversationAgent:
             self.add_message(system_message)
             
             while True:
-                # Use the new chat interface instead of regular input
                 user_input = await self.ui_interface.get_user_input("What would you like me to help you with?")
                 user_message = {
                     "role": "user", 
@@ -158,34 +157,15 @@ class ConversationAgent:
     async def _recursive_message_handling(self, show_thinking: bool = True) -> None:
         self.history_manager.auto_messages_compression()
         
-        # Show animated spinner for initial calls, not recursive ones
         if show_thinking:
             self.ui_interface.start_spinner("Thinking...")
-        
-        def _estimate_tokens(obj: Any) -> int:
-            try:
-                serialized = json.dumps(obj, ensure_ascii=False)
-            except Exception:
-                try:
-                    serialized = str(obj)
-                except Exception:
-                    serialized = ""
-            # Approximate 1 token ≈ 4 characters
-            return max(0, (len(serialized) + 3) // 4)
-
-        # Build messages/tools first so we can estimate token usage
+            self._start_interrupt_flow()
         messages = self._get_messages_with_cache_mark()
         tools_description = self.tool_registry.get_tools_description()
-
-        # Defaults and env-configurable parameters
-        user_requested_max_out = int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "8192"))
-        context_limit = int(os.getenv("OPENAI_CONTEXT_LIMIT", "131072"))
-        buffer_tokens = int(os.getenv("OPENAI_OUTPUT_BUFFER_TOKENS", "1024"))
-
-        estimated_input_tokens = _estimate_tokens(messages) + _estimate_tokens(tools_description)
-        safe_output_cap = max(256, context_limit - estimated_input_tokens - buffer_tokens)
-        max_output_tokens = max(256, min(user_requested_max_out, safe_output_cap))
-        temperature = float(os.getenv("OPENAI_TEMPERATURE", "0.2"))
+        limits = self._get_openai_env_limits()
+        estimated_input_tokens = self._estimate_tokens(messages) + self._estimate_tokens(tools_description)
+        max_output_tokens = self._compute_max_output_tokens(estimated_input_tokens, limits)
+        temperature = self._get_temperature()
 
         request = {
             "messages": messages,
@@ -204,18 +184,33 @@ class ConversationAgent:
             response_message = None
             full_content = ""
             token_usage = None
-            
-            # Prepare to stream content; keep spinner running until first chunk arrives
+            interrupted = False
             self.ui_interface.start_assistant_response()
             spinner_stopped = False
             
             try:
                 for chunk in stream_generator:
+                    interrupt_text = self._safe_poll_interrupt()
+                    if interrupt_text is not None:
+                        if interrupt_text.strip() == "/":
+                            interrupted = True
+                            spinner_stopped = self._ensure_spinner_stopped(spinner_stopped)
+                            instr = self._capture_instruction_interactively()
+                            if instr:
+                                try:
+                                    self.ui_interface.start_spinner("Applying instruction...")
+                                except Exception:
+                                    pass
+                                await self._handle_user_interrupt(instr)
+                            break
+                        else:
+                            interrupted = True
+                            spinner_stopped = self._ensure_spinner_stopped(spinner_stopped)
+                            await self._handle_user_interrupt(interrupt_text)
+                            break
                     if not spinner_stopped:
                         # Stop spinner on first output
-                        self.ui_interface.stop_spinner()
-                        print()
-                        spinner_stopped = True
+                        spinner_stopped = self._ensure_spinner_stopped(spinner_stopped)
                     if isinstance(chunk, str):
                         full_content += chunk
                         self.ui_interface.stream_content(chunk)
@@ -227,18 +222,15 @@ class ConversationAgent:
                         token_usage = chunk.usage
             except Exception as stream_error:
                 self.ui_interface.display_error(f"Streaming error: {stream_error}")
-                # Try to recover gracefully
                 if full_content.strip():
                     response_message = self._create_simple_message(full_content)
             finally:
-                # Ensure spinner is stopped if no chunks were emitted
                 if not spinner_stopped:
                     self.ui_interface.stop_spinner()
                     print()
             
             self.ui_interface.finish_assistant_response()
             
-            # Ensure we have a response message
             if response_message is None:
                 if full_content.strip():
                     response_message = self._create_simple_message(full_content)
@@ -246,7 +238,6 @@ class ConversationAgent:
                     response_message = self._create_simple_message("I apologize, but I didn't receive a complete response.")
                     self.ui_interface.display_assistant_message(response_message.content)
             elif not full_content.strip():
-                # If we have a response message but no streaming content, display it
                 self.ui_interface.display_assistant_message(response_message.content)
             
         except Exception as e:
@@ -267,34 +258,37 @@ class ConversationAgent:
                 self.ui_interface.display_assistant_message(response_message.content)
                 return
 
+        self._stop_interrupt_listener_safely()
+
         if token_usage:
             self.history_manager.update_token_usage(token_usage)
-        
-        # Create assistant message for history - use streaming content if available
-        content_to_save = full_content if full_content.strip() else (
-            response_message.content if hasattr(response_message, 'content') else str(response_message)
-        )
-        assistant_message = {
-            "role": "assistant",
-            "content": content_to_save,
-            "tool_calls": response_message.tool_calls if hasattr(response_message, 'tool_calls') and response_message.tool_calls else None
-        }
-        self.add_message(assistant_message)
+
+        if not (interrupted and not full_content.strip()):
+            content_to_save = full_content if full_content.strip() else (
+                response_message.content if hasattr(response_message, 'content') else str(response_message)
+            )
+            assistant_message = {
+                "role": "assistant",
+                "content": content_to_save,
+                "tool_calls": response_message.tool_calls if hasattr(response_message, 'tool_calls') and response_message.tool_calls else None
+            }
+            self.add_message(assistant_message)
         
         self.history_manager.auto_messages_compression()
 
-        # Handle tool calls if present
-        if hasattr(response_message, 'tool_calls') and response_message.tool_calls is not None and len(response_message.tool_calls) > 0:
-            # Start spinner for tool execution if not already running
+        if interrupted:
+            await self._recursive_message_handling(show_thinking=True)
+            return
+        if self._has_tool_calls(response_message):
             if not hasattr(self.ui_interface, '_spinner_active') or not self.ui_interface._spinner_active:
                 self.ui_interface.start_spinner("Processing...")
+                self._start_interrupt_flow()
             
-            await self._handle_tool_calls(response_message.tool_calls)
-            # Continue the conversation after tool execution (without showing "Thinking..." again)
+            await self._handle_tool_calls(self._extract_tool_calls(response_message))
             await self._recursive_message_handling(show_thinking=False)
         else:
-            # Show context and cost only once at the end of the conversation turn
             self._print_context_window_and_total_cost()
+        self._stop_interrupt_listener_safely()
 
     def _print_context_window_and_total_cost(self) -> None:
         context_usage = self.history_manager.current_context_window
@@ -304,8 +298,93 @@ class ConversationAgent:
     def _get_messages_with_cache_mark(self) -> List[Dict]:
         messages = self.history_manager.get_current_messages()
         if messages and "content" in messages[-1] and messages[-1]["content"]:
-            messages[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}
+            content = messages[-1]["content"]
+            # Only attach cache_control for list-based content entries
+            if isinstance(content, list) and isinstance(content[-1], dict):
+                content[-1]["cache_control"] = {"type": "ephemeral"}
         return messages
+
+    def _start_interrupt_flow(self) -> None:
+        try:
+            self.ui_interface.display_interrupt_hint()
+        except Exception:
+            pass
+        try:
+            self.ui_interface.start_interrupt_listener()
+        except Exception:
+            pass
+
+    def _stop_interrupt_listener_safely(self) -> None:
+        try:
+            self.ui_interface.stop_interrupt_listener()
+        except Exception:
+            pass
+
+    def _safe_poll_interrupt(self) -> Optional[str]:
+        try:
+            return self.ui_interface.poll_interrupt()
+        except Exception:
+            return None
+
+    def _ensure_spinner_stopped(self, spinner_stopped: bool) -> bool:
+        if not spinner_stopped:
+            self.ui_interface.stop_spinner()
+            print()
+            return True
+        return spinner_stopped
+
+    def _capture_instruction_interactively(self) -> Optional[str]:
+        try:
+            self.ui_interface.pause_stream_display()
+            self.ui_interface.flush_interrupts()
+            self.ui_interface.display_info("/ instruction mode - type and press Enter")
+            instr = self.ui_interface.wait_for_interrupt(timeout=2.0)
+            if not instr:
+                try:
+                    self.ui_interface.stop_interrupt_listener()
+                except Exception:
+                    pass
+                instr = self.ui_interface.capture_instruction()
+                try:
+                    self.ui_interface.start_interrupt_listener()
+                except Exception:
+                    pass
+            return instr
+        finally:
+            try:
+                self.ui_interface.resume_stream_display()
+            except Exception:
+                pass
+
+    def _estimate_tokens(self, obj: Any) -> int:
+        try:
+            serialized = json.dumps(obj, ensure_ascii=False)
+        except Exception:
+            try:
+                serialized = str(obj)
+            except Exception:
+                serialized = ""
+        return max(0, (len(serialized) + 3) // 4)
+
+    def _get_openai_env_limits(self) -> Dict[str, int]:
+        return {
+            "user_requested_max_out": int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "8192")),
+            "context_limit": int(os.getenv("OPENAI_CONTEXT_LIMIT", "131072")),
+            "buffer_tokens": int(os.getenv("OPENAI_OUTPUT_BUFFER_TOKENS", "1024")),
+        }
+
+    def _compute_max_output_tokens(self, estimated_input_tokens: int, limits: Dict[str, int]) -> int:
+        safe_output_cap = max(256, limits["context_limit"] - estimated_input_tokens - limits["buffer_tokens"])
+        return max(256, min(limits["user_requested_max_out"], safe_output_cap))
+
+    def _get_temperature(self) -> float:
+        return float(os.getenv("OPENAI_TEMPERATURE", "0.2"))
+
+    def _has_tool_calls(self, response_message: Any) -> bool:
+        return bool(hasattr(response_message, 'tool_calls') and response_message.tool_calls)
+
+    def _extract_tool_calls(self, response_message: Any):
+        return response_message.tool_calls if hasattr(response_message, 'tool_calls') and response_message.tool_calls else []
 
     async def _handle_tool_calls(self, tool_calls) -> None:
         for i, tool_call in enumerate(tool_calls):
@@ -332,20 +411,6 @@ class ConversationAgent:
                 approval_content = f"Tool: {tool_call.function.name}, args: {args}"
                 # Simplified approval for HakkenCodeUI
                 should_execute = await self.ui_interface.confirm_action(approval_content)
-                action = "accept" if should_execute else "ignore"
-                modified_args = args
-                response = ""
-                
-                if action == "accept":
-                    should_execute = True
-                    args = modified_args
-                elif action == "respond":
-                    should_execute = True
-                    args = modified_args
-                    user_response = response
-                elif action == "ignore":
-                    should_execute = False
-                    user_response = response
 
             if should_execute:
                 await self._execute_tool(tool_call, args, is_last_tool, user_response)
