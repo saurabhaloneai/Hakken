@@ -1,4 +1,4 @@
-## overview
+## overview of hakken
 
 this doc explains, end-to-end, how user inputs, llm calls, tool executions, and todo updates flow through the hakken runtime. it also shows how the streaming/interrupt loop works.
 
