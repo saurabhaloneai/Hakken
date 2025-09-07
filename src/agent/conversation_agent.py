@@ -6,6 +6,12 @@ import os
 import hashlib
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Tuple
+
+# ensure the project src directory is importable before other imports
+_src_dir = Path(__file__).parent.parent.absolute()
+if str(_src_dir) not in sys.path:
+    sys.path.insert(0, str(_src_dir))
+
 from client.openai_client import APIClient, APIConfiguration
 from history.conversation_history import ConversationHistoryManager, HistoryConfiguration
 from interface.user_interface import HakkenCodeUI
@@ -22,9 +28,6 @@ from tools.git_tools import GitTools
 from tools.file_editor import FileEditor
 from tools.web_search import WebSearch
 from prompt.prompt_manager import PromptManager
-current_dir = Path(__file__).parent.parent.absolute()
-if str(current_dir) not in sys.path:
-    sys.path.insert(0, str(current_dir))
 
 
 
@@ -58,7 +61,7 @@ class ConversationAgent:
         self._is_in_task = False
         self._pending_user_instruction: str = ""
         
-        # Tool schema token estimation cache: (schema_hash, estimated_tokens)
+        # tool schema token estimation cache: (schema_hash, estimated_tokens)
         self._tools_schema_cache: Optional[Tuple[str, int]] = None
     
     def _register_tools(self) -> None:
@@ -78,7 +81,6 @@ class ConversationAgent:
         task_memory = TaskMemoryTool()
         self.tool_registry.register_tool(task_memory)
         
-        # New development tools
         file_reader = FileReader()
         self.tool_registry.register_tool(file_reader)
         
@@ -126,7 +128,7 @@ class ConversationAgent:
                 
                 await self._recursive_message_handling()
                 
-        except KeyboardInterrupt:
+        except KeyboardInterrupt: #to avoid traceback
             self.ui_interface.console.print("\n● Conversation ended. Goodbye! 👋\n")
             return
         except Exception as e:
@@ -165,10 +167,36 @@ class ConversationAgent:
 
     async def _recursive_message_handling(self, show_thinking: bool = True) -> None:
         self.history_manager.auto_messages_compression()
+        self._begin_thinking_if_needed(show_thinking)
+        request = self._build_openai_request()
+
+        response_message, full_content, token_usage, interrupted, early_exit = await self._get_assistant_response(request)
+        if early_exit:
+            return
+
+        self._stop_interrupt_listener_safely()
+
+        if token_usage:
+            self.history_manager.update_token_usage(token_usage)
+
+        self._save_assistant_message(response_message, full_content, interrupted)
         
+        self.history_manager.auto_messages_compression()
+
+        await self._post_response_flow(response_message, full_content, interrupted)
+        self._stop_interrupt_listener_safely()
+
+    def _begin_thinking_if_needed(self, show_thinking: bool) -> None:
         if show_thinking:
+            # ensure any previous spinner is stopped before starting a new one
+            try:
+                self.ui_interface.stop_spinner()
+            except Exception:
+                pass
             self.ui_interface.start_spinner("Thinking...")
             self._start_interrupt_flow()
+
+    def _build_openai_request(self) -> Dict:
         messages = self._get_messages_with_cache_mark()
         tools_description = self.tool_registry.get_tools_description()
         limits = self._get_openai_env_limits()
@@ -183,20 +211,22 @@ class ConversationAgent:
             "temperature": temperature,
             "tool_choice": "auto",
         }
+        return request
 
+    async def _get_assistant_response(self, request: Dict) -> Tuple[Any, str, Any, bool, bool]:
         response_message = None
         full_content = ""
         token_usage = None
         interrupted = False
-        
+        early_exit = False
+
         try:
             stream_generator = self.api_client.get_completion_stream(request)
-            
             if stream_generator is None:
                 raise Exception("Stream generator is None - API client returned no response")
             self.ui_interface.start_assistant_response()
             spinner_stopped = False
-            
+
             try:
                 for chunk in stream_generator:
                     interrupt_text = self._safe_poll_interrupt()
@@ -219,14 +249,12 @@ class ConversationAgent:
                             await self._handle_user_interrupt(interrupt_text)
                             break
                         else:
-                            # Queue the instruction without interrupting the current flow
                             self._pending_user_instruction = stripped
                             try:
                                 self.ui_interface.display_info("instruction queued; will apply after this step")
                             except Exception:
                                 pass
                     if not spinner_stopped:
-                        # Stop spinner on first output
                         spinner_stopped = self._ensure_spinner_stopped(spinner_stopped)
                     if isinstance(chunk, str):
                         full_content += chunk
@@ -245,41 +273,58 @@ class ConversationAgent:
                 if not spinner_stopped:
                     self.ui_interface.stop_spinner()
                     print()
-            
+
             self.ui_interface.finish_assistant_response()
-            
-            if response_message is None:
+
+            # if the model is requesting tool calls, skip fallback/printing here;
+            # the tool flow will handle it next.
+            if response_message is not None and self._has_tool_calls(response_message):
+                pass
+            elif response_message is None:
                 if full_content.strip():
                     response_message = self._create_simple_message(full_content)
                 else:
-                    response_message = self._create_simple_message("I apologize, but I didn't receive a complete response.")
+                    # no streamed chunks and no final message → print a helpful notice
+                    response_message = self._create_simple_message("sorry, i didn't receive a complete response.")
                     self.ui_interface.display_assistant_message(response_message.content)
             elif not full_content.strip():
-                self.ui_interface.display_assistant_message(response_message.content)
-            
+                # no streamed chunks; if final message has content, show it, otherwise fallback to non-streaming
+                final_content = getattr(response_message, 'content', '')
+                if isinstance(final_content, str) and final_content.strip():
+                    self.ui_interface.display_assistant_message(final_content)
+                else:
+                    try:
+                        self.ui_interface.display_info("no streamed content; retrying without streaming…")
+                        fallback_msg, fallback_usage = self.api_client.get_completion(request)
+                        self.ui_interface.display_assistant_message(fallback_msg.content)
+                        if fallback_usage:
+                            token_usage = fallback_usage
+                            self.history_manager.update_token_usage(token_usage)
+                        response_message = fallback_msg
+                    except Exception as fb_err:
+                        self.ui_interface.display_error(f"non-streaming fallback failed: {fb_err}")
+                        response_message = self._create_error_message(str(fb_err))
+                        self.ui_interface.display_assistant_message(response_message.content)
+                        early_exit = True
+
         except Exception as e:
             self.ui_interface.stop_spinner()
             self.ui_interface.display_error(f"Response processing error: {e}")
-            
             try:
                 self.ui_interface.display_info("🔄 Retrying with non-streaming mode...")
                 response_message, token_usage = self.api_client.get_completion(request)
                 self.ui_interface.display_assistant_message(response_message.content)
-                
                 if token_usage:
                     self.history_manager.update_token_usage(token_usage)
-                    
             except Exception as fallback_error:
                 self.ui_interface.display_error(f"Non-streaming mode also failed: {fallback_error}")
                 response_message = self._create_error_message(str(e))
                 self.ui_interface.display_assistant_message(response_message.content)
-                return
+                early_exit = True
 
-        self._stop_interrupt_listener_safely()
+        return response_message, full_content, token_usage, interrupted, early_exit
 
-        if token_usage:
-            self.history_manager.update_token_usage(token_usage)
-
+    def _save_assistant_message(self, response_message: Any, full_content: str, interrupted: bool) -> None:
         if not (interrupted and not full_content.strip()):
             content_to_save = full_content if full_content.strip() else (
                 response_message.content if hasattr(response_message, 'content') else str(response_message)
@@ -290,22 +335,20 @@ class ConversationAgent:
                 "tool_calls": response_message.tool_calls if hasattr(response_message, 'tool_calls') and response_message.tool_calls else None
             }
             self.add_message(assistant_message)
-        
-        self.history_manager.auto_messages_compression()
 
+    async def _post_response_flow(self, response_message: Any, full_content: str, interrupted: bool) -> None:
         if interrupted:
             await self._recursive_message_handling(show_thinking=True)
             return
         if self._has_tool_calls(response_message):
             if not hasattr(self.ui_interface, '_spinner_active') or not self.ui_interface._spinner_active:
-                self.ui_interface.start_spinner("Processing...")
+                self.ui_interface.start_spinner("Processing…")
                 self._start_interrupt_flow()
-            
             await self._handle_tool_calls(self._extract_tool_calls(response_message))
-            await self._recursive_message_handling(show_thinking=False)
+            # re-enable spinner for the post-tool assistant turn so streaming is visible
+            await self._recursive_message_handling(show_thinking=True)
         else:
             self._print_context_window_and_total_cost()
-            # If the assistant narrated an action but didn't call a tool, gently nudge to act
             try:
                 last_msg = self.history_manager.get_current_messages()[-1]
                 last_content = last_msg.get("content", "") if isinstance(last_msg, dict) else ""
@@ -322,8 +365,6 @@ class ConversationAgent:
                     return
             except Exception:
                 pass
-            # If there is a queued instruction and no tool run followed,
-            # inject it as a follow-up user message to be handled immediately.
             pending_after = self._pending_user_instruction.strip() if isinstance(getattr(self, "_pending_user_instruction", ""), str) else ""
             if pending_after:
                 self._pending_user_instruction = ""
@@ -335,7 +376,6 @@ class ConversationAgent:
                 }
                 self.add_message(interrupt_message)
                 await self._recursive_message_handling(show_thinking=True)
-        self._stop_interrupt_listener_safely()
 
     def _print_context_window_and_total_cost(self) -> None:
         context_usage = self.history_manager.current_context_window
@@ -529,9 +569,6 @@ class ConversationAgent:
             return f"Tool: {tool_name}, args: {args}"
 
     def _derive_action_nudge(self, assistant_text: str) -> Optional[str]:
-        """Heuristic nudge: when the assistant says it will act but provided no tool calls, ask it to execute.
-        Keeps wording short to preserve KV-cache stability.
-        """
         text = assistant_text.lower()
         if not text or len(text) > 4000:
             return None
@@ -542,8 +579,7 @@ class ConversationAgent:
             return "use cmd_runner with 'ls -la' now, do not describe."
         if "open" in text and ("file" in text or "." in text):
             return "use read_file to open the stated file now, do not describe."
-        if "search" in text and "web" in text:
-            return "use web_search now, do not describe."
+        # disable web_search auto-nudge entirely to prevent loops
         return None
 
     async def _execute_tool(self, tool_call, args: Dict, is_last_tool: bool = False, user_response: str = "") -> None:

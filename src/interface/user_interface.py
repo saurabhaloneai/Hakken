@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import tty
 import termios
+import select
 
 
 @dataclass
@@ -107,12 +108,31 @@ class HakkenCodeUI:
         """Get user input with exact Hakken Code styling"""
         # Show the exact prompt style: "> " with cursor
         try:
+            # first, drain any queued interrupt input captured by the background listener
+            # this avoids the next prompt from blocking if the listener consumed the user's line
+            drained_input: Optional[str] = None
+            try:
+                while True:
+                    queued = self.poll_interrupt()
+                    if queued is None:
+                        break
+                    s = queued.strip()
+                    if s:
+                        drained_input = s
+            except Exception:
+                drained_input = drained_input or None
+
             # Display the prompt exactly like Hakken Code
             prompt_text = Text()
             prompt_text.append("> ", style=f"bold {self.colors['white']}")
             self.console.print(prompt_text, end="")
-            
-            user_input = input("").strip()
+
+            # if we already have a drained line, echo it and use it as the input
+            if drained_input is not None:
+                print(drained_input)
+                user_input = drained_input
+            else:
+                user_input = input("").strip()
             if user_input and add_to_history:
                 # Add to conversation history if requested
                 self.conversation.append(Message('user', user_input))
@@ -259,17 +279,22 @@ class HakkenCodeUI:
         self._interrupt_stop.clear()
 
         def _reader():
-            # Blocking line reads; push to queue until stop requested
+            # Non-blocking reads using select to avoid competing with main input()
+            # Only active in interactive TTY environments
+            if not sys.stdin or not hasattr(sys.stdin, "fileno") or not sys.stdin.isatty():
+                return
             while not self._interrupt_stop.is_set():
                 try:
+                    rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+                    if not rlist:
+                        continue
                     line = sys.stdin.readline()
                 except Exception:
                     break
-                if line is None:
-                    break
+                if not line:
+                    continue
                 text = line.strip()
                 if text:
-                    # Avoid spamming identical repeated hints
                     self._interrupt_queue.put(text)
 
         self._interrupt_thread = threading.Thread(target=_reader, daemon=True)
@@ -287,7 +312,7 @@ class HakkenCodeUI:
             pass
         finally:
             # Allow hint to display again for the next session/turn
-            self._interrupt_hint_shown = False
+            pass
 
     def poll_interrupt(self) -> Optional[str]:
         """Non-blocking read of any user-provided interrupt text."""

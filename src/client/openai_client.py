@@ -46,9 +46,13 @@ class APIClient:
         return round(self._total_cost, 2)
     
     def get_completion(self, request_params: Dict[str, Any]) -> Tuple[Any, Any]:
-        request_params["model"] = self.config.model
+        # work on a copy and ensure streaming flags are not present
+        params = dict(request_params)
+        params.pop("stream", None)
+        params.pop("stream_options", None)
+        params["model"] = self.config.model
         try:
-            response = self.client.chat.completions.create(**request_params)
+            response = self.client.chat.completions.create(**params)
             message = response.choices[0].message
             token_usage = response.usage
             
@@ -61,12 +65,14 @@ class APIClient:
             raise Exception(f"API request failed: {str(e)}")
     
     def get_completion_stream(self, request_params: Dict[str, Any]) -> Generator[str, None, None]:
-        request_params["model"] = self.config.model
-        request_params["stream"] = True
-        request_params["stream_options"] = {"include_usage": True}
+        # work on a copy to avoid mutating the original request dict
+        params = dict(request_params)
+        params["model"] = self.config.model
+        params["stream"] = True
+        params["stream_options"] = {"include_usage": True}
         
         try:
-            stream = self.client.chat.completions.create(**request_params)
+            stream = self.client.chat.completions.create(**params)
             
             full_content = ""
             tool_calls = []
