@@ -442,7 +442,8 @@ class HakkenCodeUI:
                     prefix = "> " if idx == sel else "  "
                     style = f"bold {self.colors['white']}" if idx == sel else self.colors['white']
                     body.append(prefix + label + ("\n" if idx < len(choices)-1 else ""), style=style)
-                title_text = Text(); title_text.append("approval required", style=f"bold {self.colors['orange']}")
+                title_text = Text()
+                title_text.append("approval required", style=f"bold {self.colors['orange']}")
                 return Panel(
                     body,
                     title=title_text,
@@ -474,11 +475,14 @@ class HakkenCodeUI:
                         if ch in ("\r", "\n"):
                             break
                         if ch.lower() in ("1", "y"):
-                            selected = 0; break
+                            selected = 0
+                            break
                         if ch.lower() in ("2", "n"):
-                            selected = 1; break
+                            selected = 1
+                            break
                         if ch.lower() in ("3", "a"):
-                            selected = 2; break
+                            selected = 2
+                            break
                         # any other key: re-render unchanged
                         live.update(render_panel(selected))
             finally:
@@ -511,7 +515,6 @@ class HakkenCodeUI:
         for i, todo in enumerate(todos_to_show, 1):
             status = todo.get('status', 'pending')
             task = todo.get('task', todo.get('content', 'No description'))
-            priority = todo.get('priority', 'normal')
             
             # Modern vibrant status indicators
             if status == 'completed':
@@ -528,7 +531,7 @@ class HakkenCodeUI:
                 task_style = self.colors['light_gray']
             
             # Add task with clean formatting
-            todo_content.append(f"  ", style="")
+            todo_content.append("  ", style="")
             todo_content.append(icon, style=f"bold {icon_color}")
             todo_content.append("  ", style="")
             todo_content.append(task, style=task_style)

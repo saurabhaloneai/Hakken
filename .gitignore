@@ -5,3 +5,4 @@ __pycache__
 hakken.egg-info
 .venv
 .hakken
+.ruff_cache

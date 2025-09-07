@@ -1,5 +1,4 @@
 import subprocess
-import os
 from typing import Dict, Any
 from .tool_interface import ToolInterface, ToolResult
 

@@ -1,6 +1,5 @@
-import re
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from .tool_interface import ToolInterface, ToolResult
 
 
@@ -93,8 +92,8 @@ class GrepSearch(ToolInterface):
                                 if len(results) >= match_limit:
                                     matches_truncated = True
                                     break
-                except:
-                    continue  # Skip files we can't read
+                except Exception:
+                    continue
                 
                 if len(results) >= match_limit:
                     break

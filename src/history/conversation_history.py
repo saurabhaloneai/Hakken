@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import os
 from dotenv import load_dotenv
 from enum import Enum
-from typing import List, Any, Optional
+from typing import List, Any
 
 load_dotenv()
 

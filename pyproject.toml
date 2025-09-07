@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "Saurabh", email = "your-email@example.com"}
+    {name = "Saurabh", email = "saurabhalone85@gmail.com"}
 ]
 keywords = ["ai", "agent", "conversation", "cli"]
 classifiers = [
@@ -30,6 +30,7 @@ dependencies = [
     "openai>=1.106.0",
     "rich>=14.1.0",
     "tavily-python>=0.3.0",
+    "ruff>=0.12.12",
 ]
 
 [tool.setuptools.packages.find]

@@ -7,10 +7,7 @@ import hashlib
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Tuple
 
-# ensure the project src directory is importable before other imports
-_src_dir = Path(__file__).parent.parent.absolute()
-if str(_src_dir) not in sys.path:
-    sys.path.insert(0, str(_src_dir))
+sys.path.insert(0, str(Path(__file__).parent.parent.absolute()))
 
 from client.openai_client import APIClient, APIConfiguration
 from history.conversation_history import ConversationHistoryManager, HistoryConfiguration
@@ -29,84 +26,61 @@ from tools.file_editor import FileEditor
 from tools.web_search import WebSearch
 from prompt.prompt_manager import PromptManager
 
-
-
 class AgentConfiguration:
 
     def __init__(self):
         self.api_config = APIConfiguration.from_environment()
         self.history_config = HistoryConfiguration.from_environment()
 
-
 class ConversationAgent:
-  
     def __init__(self, config: Optional[AgentConfiguration] = None):
-    
         self.config = config or AgentConfiguration()
-        
         self.api_client = APIClient(self.config.api_config)
         self.ui_interface = HakkenCodeUI()
-      
         self.history_manager = ConversationHistoryManager(
             self.config.history_config, 
             self.ui_interface
         )
-        
         self.tool_registry = ToolRegistry()
         self._register_tools()
-
         self.prompt_manager = PromptManager(self.tool_registry)
         self.interrupt_manager = InterruptConfigManager()
-      
         self._is_in_task = False
         self._pending_user_instruction: str = ""
-        
-        # tool schema token estimation cache: (schema_hash, estimated_tokens)
         self._tools_schema_cache: Optional[Tuple[str, int]] = None
-    
+
     def _register_tools(self) -> None:
-       
         cmd_runner = CommandRunner()
         self.tool_registry.register_tool(cmd_runner)
-        
         todo_writer = TodoWriteManager(self.ui_interface)
         self.tool_registry.register_tool(todo_writer)
-
         context_cropper = ContextCropper(self.history_manager)
         self.tool_registry.register_tool(context_cropper)
-
         task_delegator = TaskDelegator(self.ui_interface, self)
         self.tool_registry.register_tool(task_delegator)
-
         task_memory = TaskMemoryTool()
         self.tool_registry.register_tool(task_memory)
-        
         file_reader = FileReader()
         self.tool_registry.register_tool(file_reader)
-        
         grep_search = GrepSearch()
         self.tool_registry.register_tool(grep_search)
-        
         git_tools = GitTools()
         self.tool_registry.register_tool(git_tools)
-        
         file_editor = FileEditor()
         self.tool_registry.register_tool(file_editor)
-        
         web_search = WebSearch()
         self.tool_registry.register_tool(web_search)
 
     @property
     def messages(self) -> List[Dict]:
         return self.history_manager.get_current_messages()
-    
+
     def add_message(self, message: Dict) -> None:
         self.history_manager.add_message(message)
 
     async def start_conversation(self) -> None:
         try:
             self.ui_interface.display_welcome_header()
-            
             system_message = {
                 "role": "system", 
                 "content": [
@@ -114,7 +88,6 @@ class ConversationAgent:
                 ]
             }
             self.add_message(system_message)
-            
             while True:
                 user_input = await self.ui_interface.get_user_input("What would you like me to help you with?")
                 user_message = {
@@ -124,11 +97,8 @@ class ConversationAgent:
                     ]
                 }
                 self.add_message(user_message)
-                
-                
                 await self._recursive_message_handling()
-                
-        except KeyboardInterrupt: #to avoid traceback
+        except KeyboardInterrupt:
             try:
                 await self._maybe_prompt_and_save_on_exit()
             except Exception:
@@ -136,7 +106,6 @@ class ConversationAgent:
             try:
                 ctx = self.history_manager.current_context_window
                 cost = self.api_client.total_cost
-                # Ensure terminal control-char echo is restored to clean up any ^C artifacts as we exit
                 try:
                     self.ui_interface.restore_session_terminal_mode()
                 except Exception:
@@ -160,7 +129,6 @@ class ConversationAgent:
             ]
         }
         self.add_message(system_message)
-        
         user_message = {
             "role": "user", 
             "content": [
@@ -175,7 +143,6 @@ class ConversationAgent:
             self.ui_interface.display_error(f"System error occurred during running task: {e}")
             traceback.print_exc()
             sys.exit(1)
-        
         self._is_in_task = False
         return self.history_manager.finish_chat_get_response()
 
@@ -189,12 +156,10 @@ class ConversationAgent:
             return
 
         self._stop_interrupt_listener_safely()
-
         if token_usage:
             self.history_manager.update_token_usage(token_usage)
 
         self._save_assistant_message(response_message, full_content, interrupted)
-        
         self.history_manager.auto_messages_compression()
 
         await self._post_response_flow(response_message, full_content, interrupted)
@@ -202,7 +167,6 @@ class ConversationAgent:
 
     def _begin_thinking_if_needed(self, show_thinking: bool) -> None:
         if show_thinking:
-            # ensure any previous spinner is stopped before starting a new one
             try:
                 self.ui_interface.stop_spinner()
             except Exception:
@@ -227,23 +191,16 @@ class ConversationAgent:
         }
         return request
 
-    # --- Streaming helpers to keep _get_assistant_response small ---
     async def _consume_stream(self, stream_generator) -> Tuple[Any, str, Any, bool]:
-        """Consume the streaming response, handling interrupts and building content.
-
-        Returns (response_message, full_content, token_usage, interrupted)
-        """
         response_message = None
         full_content = ""
         token_usage = None
         interrupted = False
-
         self.ui_interface.start_assistant_response()
         spinner_stopped = False
 
         try:
             for chunk in stream_generator:
-                # poll interrupts frequently to remain responsive
                 interrupt_text = self._safe_poll_interrupt()
                 if interrupt_text is not None:
                     stripped = interrupt_text.strip()
@@ -256,12 +213,12 @@ class ConversationAgent:
                                 self.ui_interface.start_spinner("Applying instruction...")
                             except Exception:
                                 pass
-                            await self._handle_user_interrupt(instr)
+                            self._pending_user_instruction = instr
                         break
                     elif stripped.lower() == "/stop":
                         interrupted = True
                         spinner_stopped = self._ensure_spinner_stopped(spinner_stopped)
-                        await self._handle_user_interrupt(interrupt_text)
+                        self._pending_user_instruction = interrupt_text
                         break
                     else:
                         self._pending_user_instruction = stripped
@@ -296,13 +253,8 @@ class ConversationAgent:
 
     def _finalize_stream_response(self, response_message: Any, full_content: str, token_usage: Any,
                                    interrupted: bool, request: Dict) -> Tuple[Any, Any, bool]:
-        """Finalize response after streaming, including fallback logic.
-
-        Returns (response_message, token_usage, early_exit)
-        """
         early_exit = False
 
-        # if the model is requesting tool calls, skip fallback/printing here; tool flow handles it
         if response_message is not None and self._has_tool_calls(response_message):
             return response_message, token_usage, early_exit
 
@@ -310,7 +262,6 @@ class ConversationAgent:
             if full_content.strip():
                 response_message = self._create_simple_message(full_content)
             else:
-                # no streamed chunks and no final message
                 if not interrupted:
                     response_message = self._create_simple_message("sorry, i didn't receive a complete response.")
                     self.ui_interface.display_assistant_message(response_message.content)
@@ -319,7 +270,6 @@ class ConversationAgent:
             return response_message, token_usage, early_exit
 
         if not full_content.strip():
-            # no streamed chunks; if final message has content, show it, otherwise fallback to non-streaming
             final_content = getattr(response_message, 'content', '')
             if isinstance(final_content, str) and final_content.strip():
                 self.ui_interface.display_assistant_message(final_content)
@@ -398,7 +348,6 @@ class ConversationAgent:
                 self.ui_interface.start_spinner("Processing…")
                 self._start_interrupt_flow()
             await self._handle_tool_calls(self._extract_tool_calls(response_message))
-            # re-enable spinner for the post-tool assistant turn so streaming is visible
             await self._recursive_message_handling(show_thinking=True)
         else:
             self._print_context_window_and_total_cost()
@@ -431,14 +380,12 @@ class ConversationAgent:
                 await self._recursive_message_handling(show_thinking=True)
 
     def _print_context_window_and_total_cost(self) -> None:
-        # suppress inline context/cost status in the output
         return
 
     def _get_messages_with_cache_mark(self) -> List[Dict]:
         messages = self.history_manager.get_current_messages()
         if messages and "content" in messages[-1] and messages[-1]["content"]:
             content = messages[-1]["content"]
-            # Only attach cache_control for list-based content entries
             if isinstance(content, list) and isinstance(content[-1], dict):
                 content[-1]["cache_control"] = {"type": "ephemeral"}
         return messages
@@ -476,7 +423,6 @@ class ConversationAgent:
         try:
             self.ui_interface.pause_stream_display()
             self.ui_interface.flush_interrupts()
-            # silent capture; no banner
             instr = self.ui_interface.wait_for_interrupt(timeout=2.0)
             if not instr:
                 try:
@@ -506,25 +452,17 @@ class ConversationAgent:
         return max(0, (len(serialized) + 3) // 4)
 
     def _estimate_tools_tokens(self, tools_description: List[Dict]) -> int:
-        """Estimate tokens for tool schemas with caching since they rarely change"""
         try:
-            # Create a hash of the tools description for cache key
             serialized = json.dumps(tools_description, sort_keys=True, ensure_ascii=False)
             tools_hash = hashlib.md5(serialized.encode()).hexdigest()
-            
-            # Check if we have a cached result
             if self._tools_schema_cache is not None:
                 cached_hash, cached_tokens = self._tools_schema_cache
                 if cached_hash == tools_hash:
                     return cached_tokens
-            
-            # Calculate tokens and cache the result
             estimated_tokens = self._estimate_tokens(tools_description)
             self._tools_schema_cache = (tools_hash, estimated_tokens)
             return estimated_tokens
-            
         except Exception:
-            # Fallback to direct estimation
             return self._estimate_tokens(tools_description)
 
     def _get_openai_env_limits(self) -> Dict[str, int]:
@@ -656,7 +594,6 @@ class ConversationAgent:
             )
 
     def _format_approval_preview(self, tool_name: str, args: Dict[str, Any]) -> str:
-        """Format a concise approval message with truncated/normalized args to avoid flooding the UI."""
         try:
             preview_args: Dict[str, Any] = {}
             if tool_name == "cmd_runner":
@@ -671,7 +608,6 @@ class ConversationAgent:
                 else:
                     preview_args["command"] = str(cmd)
             else:
-                # generic truncation for other tools
                 for k, v in args.items():
                     if isinstance(v, str):
                         s = v.replace("\n", " ")
@@ -686,20 +622,17 @@ class ConversationAgent:
         text = assistant_text.lower()
         if not text or len(text) > 4000:
             return None
-        # common intents → direct tool hints
         if "check the todo.md" in text or "check todo.md" in text:
             return "use read_file to open 'todo.md' now, do not describe."
         if "list" in text and ("directory" in text or "files" in text or "structure" in text):
             return "use cmd_runner with 'ls -la' now, do not describe."
         if "open" in text and ("file" in text or "." in text):
             return "use read_file to open the stated file now, do not describe."
-        # disable web_search auto-nudge entirely to prevent loops
         return None
 
     async def _execute_tool(self, tool_call, args: Dict, is_last_tool: bool = False, user_response: str = "") -> None:
         tool_args = {k: v for k, v in args.items() if k != 'need_user_approve'}
         
-        # Update spinner text to show tool execution
         if hasattr(self.ui_interface, '_spinner_active') and self.ui_interface._spinner_active:
             self.ui_interface.update_spinner_text(f"Running {tool_call.function.name}...")
         else:
@@ -711,10 +644,8 @@ class ConversationAgent:
         try:
             tool_response = await self.tool_registry.run_tool(tool_call.function.name, **tool_args)
             
-            # Update spinner to show completion or display success message
             if hasattr(self.ui_interface, '_spinner_active') and self.ui_interface._spinner_active:
                 self.ui_interface.update_spinner_text(f"✓ {tool_call.function.name} completed")
-                # Small delay to show the completion message
                 await asyncio.sleep(0.3)
             else:
                 self.ui_interface.display_success(f"{tool_call.function.name} completed successfully")
@@ -723,10 +654,8 @@ class ConversationAgent:
                 response_content += f" (User instructions: {user_response})"
             self._add_tool_response(tool_call, response_content, is_last_tool)
         except Exception as e:
-            # Update spinner to show error or display error message
             if hasattr(self.ui_interface, '_spinner_active') and self.ui_interface._spinner_active:
                 self.ui_interface.update_spinner_text(f"✗ {tool_call.function.name} failed")
-                # Small delay to show the error message
                 await asyncio.sleep(0.3)
             else:
                 self.ui_interface.display_error(f"{tool_call.function.name} failed: {str(e)}")
@@ -765,8 +694,7 @@ class ConversationAgent:
                 self.tool_calls = None
         
         return ErrorMessage(error_msg)
-    
-    # --- Exit-time memory save support ---
+
     def _get_prefs_path(self) -> Path:
         base = Path(os.getcwd()) / ".hakken"
         try:
@@ -795,7 +723,6 @@ class ConversationAgent:
 
     async def _save_task_memory_on_exit(self) -> None:
         try:
-            # Construct a concise context snapshot
             messages = self.history_manager.get_current_messages() or []
             last_text = ""
             for m in reversed(messages):
@@ -860,20 +787,4 @@ class ConversationAgent:
         else:
             if bool(result):
                 await self._save_task_memory_on_exit()
-            return
-    
-    async def _handle_user_interrupt(self, user_input: str) -> None:
-        interrupt_message = {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": f"[INTERRUPT] {user_input}"}
-            ]
-        }
-        self.add_message(interrupt_message)
-        
-        if "stop" in user_input.lower():
-            self.ui_interface.display_warning("Process will stop after current tool completes")
-        elif "change" in user_input.lower() or "modify" in user_input.lower():
-            self.ui_interface.display_info("Instruction received - will be processed")
-        else:
-            self.ui_interface.display_info("Input received - will be incorporated into the next response")
+            return 
