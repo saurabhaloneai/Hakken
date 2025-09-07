@@ -42,6 +42,10 @@ class HakkenCodeUI:
         self._interrupt_queue: "queue.Queue[str]" = queue.Queue()
         self._interrupt_stop = threading.Event()
         self._interrupt_hint_shown = False
+        self._term_fd: Optional[int] = None
+        self._old_term_attrs: Optional[list] = None
+        self._session_term_fd: Optional[int] = None
+        self._session_old_attrs: Optional[list] = None
         
         # Modern cyberpunk-inspired color scheme
         self.colors = {
@@ -61,6 +65,23 @@ class HakkenCodeUI:
         }
         
         # Spinner/status initialized lazily in start_spinner
+        # Disable echo of control characters (e.g., ^C) during the session if possible
+        try:
+            if sys.stdin and hasattr(sys.stdin, "fileno") and sys.stdin.isatty():
+                fd = sys.stdin.fileno()
+                self._session_term_fd = fd
+                try:
+                    self._session_old_attrs = termios.tcgetattr(fd)
+                    new_attrs = list(self._session_old_attrs)
+                    echoctl = getattr(termios, 'ECHOCTL', 0)
+                    if echoctl:
+                        new_attrs[3] = new_attrs[3] & ~echoctl  # lflag: disable echoing control chars as ^X
+                        termios.tcsetattr(fd, termios.TCSADRAIN, new_attrs)
+                except Exception:
+                    # best-effort; ignore if not supported
+                    self._session_old_attrs = self._session_old_attrs or None
+        except Exception:
+            pass
     
     def display_welcome_header(self):
         """Display the exact welcome header from Hakken Code"""
@@ -70,8 +91,8 @@ class HakkenCodeUI:
         
         # Create the bordered welcome panel exactly like the screenshot
         welcome_content = Text()
-        welcome_content.append("✱ Welcome to Hakken Code!\n\n", style=f"bold {self.colors['orange']}")
-        welcome_content.append("/help for help, /status for your current setup\n\n", style=self.colors['gray'])
+        welcome_content.append("✱ Welcome to Hakken Code!\n", style=f"bold {self.colors['orange']}")
+        welcome_content.append("/help for help, /status for your current setup\n", style=self.colors['gray'])
         welcome_content.append(f"cwd: {current_dir}", style=self.colors['gray'])
         
         panel = Panel(
@@ -83,17 +104,18 @@ class HakkenCodeUI:
         )
         
         self.console.print(panel)
-        self.console.print()
+        # reduce extra spacing after the welcome panel
         
         # Tips section exactly like screenshot  
-        self.console.print(f"[{self.colors['gray']}]Tips for getting started:[/]\n")
+        self.console.print(f"[{self.colors['gray']}]Tips for getting started:[/]")
         self.console.print(f"[{self.colors['gray']}]  Run /init to create a Hakken.md file with instructions for Hakken[/]")
         self.console.print(f"[{self.colors['gray']}]  Use Hakken to help with file analysis, editing, bash commands and git[/]")
-        self.console.print(f"[{self.colors['gray']}]  Be as specific as you would with another engineer for the best results[/]\n")
+        self.console.print(f"[{self.colors['gray']}]  Be as specific as you would with another engineer for the best results[/]")
+        self.console.print()
         
         # Only show note if actually in home directory
         if current_dir == home_dir:
-            self.console.print(f"[{self.colors['yellow']}]Note: You have launched Hakken in your home directory. For the best experience, launch it in a project directory instead.[/]\n")
+            self.console.print(f"[{self.colors['yellow']}]Note: You have launched Hakken in your home directory. For the best experience, launch it in a project directory instead.[/]")
     
     def display_credit_warning(self, message: str = ""):
         """Display credit warning exactly like Hakken Code"""
@@ -102,7 +124,7 @@ class HakkenCodeUI:
         warning_text.append("Credit balance too low · Add funds: https://console.anthropic.com/settings/billing", 
                           style=self.colors['red'])
         self.console.print(warning_text)
-        self.console.print()
+        # avoid extra trailing blank lines
     
     async def get_user_input(self, prompt: str = "", add_to_history: bool = True) -> str:
         """Get user input with exact Hakken Code styling"""
@@ -188,7 +210,7 @@ class HakkenCodeUI:
         if self._interrupt_hint_shown:
             return
         try:
-            self.display_info("type instructions and press enter to queue; use /stop to interrupt now.")
+            self.display_info("press Esc to interrupt and enter input.")
         except Exception:
             pass
         finally:
@@ -201,7 +223,7 @@ class HakkenCodeUI:
         """
         try:
             prompt_text = Text()
-            prompt_text.append("/ instruction: ", style=f"bold {self.colors['white']}")
+            prompt_text.append("> ", style=f"bold {self.colors['white']}")
             self.console.print(prompt_text, end="")
             text = input("").strip()
             return text if text else None
@@ -279,23 +301,61 @@ class HakkenCodeUI:
         self._interrupt_stop.clear()
 
         def _reader():
-            # Non-blocking reads using select to avoid competing with main input()
+            # Non-blocking, character-level reads to detect Esc immediately
             # Only active in interactive TTY environments
             if not sys.stdin or not hasattr(sys.stdin, "fileno") or not sys.stdin.isatty():
                 return
-            while not self._interrupt_stop.is_set():
+            try:
+                fd = sys.stdin.fileno()
+                # Save and switch to cbreak mode for single-char reads
+                self._term_fd = fd
                 try:
-                    rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
-                    if not rlist:
-                        continue
-                    line = sys.stdin.readline()
+                    self._old_term_attrs = termios.tcgetattr(fd)
                 except Exception:
-                    break
-                if not line:
-                    continue
-                text = line.strip()
-                if text:
-                    self._interrupt_queue.put(text)
+                    self._old_term_attrs = None
+                try:
+                    tty.setcbreak(fd)
+                except Exception:
+                    pass
+
+                buffer = ""
+                while not self._interrupt_stop.is_set():
+                    try:
+                        rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+                        if not rlist:
+                            continue
+                        ch = sys.stdin.read(1)
+                    except Exception:
+                        break
+                    if not ch:
+                        continue
+                    # Esc key pressed → immediate interactive interrupt
+                    if ch == "\x1b":
+                        # Signal the agent to enter instruction capture mode via explicit ESC marker
+                        self._interrupt_queue.put("ESC")
+                        # Optionally drain any following bytes of an escape sequence without enqueuing
+                        try:
+                            # Briefly read and ignore the rest of potential escape sequence
+                            select.select([sys.stdin], [], [], 0.01)
+                        except Exception:
+                            pass
+                        continue
+                    # Ctrl-C (SIGINT) key: ignore here to avoid queuing visible artifacts
+                    if ch == "\x03":
+                        # do not enqueue; the main thread handles KeyboardInterrupt
+                        buffer = ""
+                        continue
+                    # Newline commits a buffered line as an interrupt text
+                    if ch in ("\r", "\n"):
+                        text = buffer.strip()
+                        if text:
+                            self._interrupt_queue.put(text)
+                        buffer = ""
+                    else:
+                        buffer += ch
+            finally:
+                # Restoration happens in stop_interrupt_listener
+                pass
 
         self._interrupt_thread = threading.Thread(target=_reader, daemon=True)
         self._interrupt_thread.start()
@@ -311,8 +371,28 @@ class HakkenCodeUI:
         except Exception:
             pass
         finally:
+            # Restore terminal mode if we changed it
+            try:
+                if self._term_fd is not None and self._old_term_attrs is not None and sys.stdin and hasattr(sys.stdin, "fileno") and sys.stdin.isatty():
+                    termios.tcsetattr(self._term_fd, termios.TCSADRAIN, self._old_term_attrs)
+            except Exception:
+                pass
+            finally:
+                self._old_term_attrs = None
+                self._term_fd = None
             # Allow hint to display again for the next session/turn
             pass
+
+    def restore_session_terminal_mode(self):
+        """Restore terminal flags changed for the session (like ECHOCTL)."""
+        try:
+            if self._session_term_fd is not None and self._session_old_attrs is not None and sys.stdin and hasattr(sys.stdin, "fileno") and sys.stdin.isatty():
+                termios.tcsetattr(self._session_term_fd, termios.TCSADRAIN, self._session_old_attrs)
+        except Exception:
+            pass
+        finally:
+            self._session_old_attrs = None
+            self._session_term_fd = None
 
     def poll_interrupt(self) -> Optional[str]:
         """Non-blocking read of any user-provided interrupt text."""
@@ -495,8 +575,8 @@ class HakkenCodeUI:
             width=80
         )
         
-        self.console.print()
         self.console.print(panel)
+        # keep a single blank line after the panel for readability
         self.console.print()
     
     def update_todos(self, todos: List[Dict[str, Any]]):
@@ -515,7 +595,7 @@ class HakkenCodeUI:
     
     async def get_choice(self, prompt: str, choices: List[str]) -> str:
         """Get user choice with Hakken Code styling"""
-        self.console.print(f"\n{prompt}")
+        self.console.print(f"{prompt}")
         for i, choice in enumerate(choices, 1):
             choice_text = Text()
             choice_text.append(f"  {i}. ", style=self.colors['gray'])
@@ -540,16 +620,32 @@ class HakkenCodeUI:
     
     
     def display_status(self, context_usage: str = "", cost: str = ""):
-        """Display system status"""
-        status_parts = []
-        if context_usage:
-            status_parts.append(f"Context: {context_usage}")
-        if cost:
-            status_parts.append(f"Cost: ${cost}")
-        
-        if status_parts:
-            status_text = " | ".join(status_parts)
-            self.display_info(status_text)
+        """No-op: context/cost display suppressed per UX request"""
+        return
+
+    def display_exit_panel(self, context_usage: str = "", cost: str = ""):
+        """Show a clean exit panel on shutdown including optional context/cost."""
+        body = Text()
+        body.append("goodbye!\n", style=f"bold {self.colors['orange']}")
+        body.append("session ended. thanks for using hakken code.\n", style=self.colors['light_gray'])
+        if context_usage or cost:
+            body.append("\n", style="")
+            if context_usage:
+                body.append(f"context: {context_usage}\n", style=self.colors['gray'])
+            if cost:
+                # ensure cost is prefixed with $ if not already
+                cost_str = str(cost)
+                if not cost_str.strip().startswith("$"):
+                    cost_str = "$" + cost_str
+                body.append(f"cost: {cost_str}", style=self.colors['gray'])
+        panel = Panel(
+            body,
+            border_style=self.colors['orange'],
+            box=box.ROUNDED,
+            padding=(1, 1),
+            width=60
+        )
+        self.console.print(panel)
 
     def show_user_message_with_credit_warning(self, user_message: str):
         """Show user message followed by credit warning like in the image"""

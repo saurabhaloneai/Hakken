@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageFunctionToolCall
 from openai.types.chat.chat_completion_message_function_tool_call import Function
 from dataclasses import dataclass
+import threading
+import queue
 
 load_dotenv()
 
@@ -70,39 +72,73 @@ class APIClient:
         params["model"] = self.config.model
         params["stream"] = True
         params["stream_options"] = {"include_usage": True}
-        
+
         try:
             stream = self.client.chat.completions.create(**params)
-            
+
             full_content = ""
             tool_calls = []
             current_tool_call = None
             token_usage = None
-            
-            for chunk in stream:
+
+            q: "queue.Queue[Any]" = queue.Queue(maxsize=256)
+            _SENTINEL = object()
+            _err_holder = {"err": None}
+
+            def _producer():
+                try:
+                    for ch in stream:
+                        try:
+                            q.put(ch, timeout=1)
+                        except Exception:
+                            break
+                except Exception as prod_err:
+                    _err_holder["err"] = prod_err
+                finally:
+                    try:
+                        q.put(_SENTINEL, timeout=1)
+                    except Exception:
+                        pass
+
+            t = threading.Thread(target=_producer, daemon=True)
+            t.start()
+
+            while True:
+                try:
+                    chunk = q.get(timeout=0.05)
+                except queue.Empty:
+                    # heartbeat to allow UI to poll interrupts
+                    yield ""
+                    continue
+
+                if chunk is _SENTINEL:
+                    break
+
                 if hasattr(chunk, 'usage') and chunk.usage:
                     token_usage = chunk.usage
                     cost = getattr(token_usage, 'model_extra', {})
                     if isinstance(cost, dict):
                         self._total_cost += cost.get("cost", 0)
                     continue
-                
-                if (hasattr(chunk, 'choices') and 
-                    len(chunk.choices) > 0 and 
-                    hasattr(chunk.choices[0], 'delta') and 
-                    hasattr(chunk.choices[0].delta, 'content') and 
-                    chunk.choices[0].delta.content):
-                    
+
+                if (
+                    hasattr(chunk, 'choices') and
+                    len(chunk.choices) > 0 and
+                    hasattr(chunk.choices[0], 'delta') and
+                    hasattr(chunk.choices[0].delta, 'content') and
+                    chunk.choices[0].delta.content
+                ):
                     content_chunk = chunk.choices[0].delta.content
                     full_content += content_chunk
                     yield content_chunk
-                
-                if (hasattr(chunk, 'choices') and 
-                    len(chunk.choices) > 0 and 
+
+                if (
+                    hasattr(chunk, 'choices') and
+                    len(chunk.choices) > 0 and
                     hasattr(chunk.choices[0], 'delta') and
-                    hasattr(chunk.choices[0].delta, 'tool_calls') and 
-                    chunk.choices[0].delta.tool_calls):
-                    
+                    hasattr(chunk.choices[0].delta, 'tool_calls') and
+                    chunk.choices[0].delta.tool_calls
+                ):
                     for tool_call_delta in chunk.choices[0].delta.tool_calls:
                         if tool_call_delta.index is not None:
                             while len(tool_calls) <= tool_call_delta.index:
@@ -111,18 +147,21 @@ class APIClient:
                                     'type': 'function',
                                     'function': {'name': None, 'arguments': ''}
                                 })
-                            
+
                             current_tool_call = tool_calls[tool_call_delta.index]
-                            
+
                             if tool_call_delta.id:
                                 current_tool_call['id'] = tool_call_delta.id
-                            
+
                             if tool_call_delta.function:
                                 if tool_call_delta.function.name:
                                     current_tool_call['function']['name'] = tool_call_delta.function.name
                                 if tool_call_delta.function.arguments:
                                     current_tool_call['function']['arguments'] += tool_call_delta.function.arguments
-            
+
+            if _err_holder["err"] is not None:
+                raise Exception(_err_holder["err"])
+
             formatted_tool_calls = None
             if tool_calls and any(tc['id'] for tc in tool_calls):
                 formatted_tool_calls = []
@@ -138,7 +177,7 @@ class APIClient:
                                 type='function'
                             )
                         )
-            
+
             message = ChatCompletionMessage(
                 content=full_content,
                 role="assistant",
@@ -152,8 +191,8 @@ class APIClient:
 
             if token_usage:
                 message.usage = token_usage
-            
+
             yield message
-            
+
         except Exception as e:
             raise Exception(f"Streaming API request failed: {str(e)}")

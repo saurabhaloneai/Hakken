@@ -76,31 +76,25 @@ class CommandRunner(ToolInterface):
         return """
 Executes a given bash command in a persistent shell session with optional timeout, user approval, and security measures.
 
-Before executing the command, please follow these steps:
+Before using this tool, prefer dedicated tools:
+- Read files: use the read_file tool (do not use `cat` here)
+- Edit files: use the edit_file tool (do not use `sed` here)
+- Search code/text: use the grep_search tool (avoid shell `grep`)
+
+Use this tool for:
+- Listing/inspecting directories (e.g., `ls -la`, `tree`)
+- Running tests/linters/formatters and project commands (pytest, ruff, black, npm, etc.)
+- Git/pip/system utilities and other shell tasks not covered by dedicated tools
+
 1. Security Check:
-   - Always check if the command is potentially dangerous (e.g., rm, sudo, chmod 777, format, del, etc.)
-   - If the command is dangerous or could cause system damage/data loss, you MUST set need_user_approve=true
+   - Treat commands that can modify or delete data as dangerous (e.g., rm, sudo, chmod 777, chown -R, dd, mkfs, kill -9 -1, shutdown/reboot)
+   - If potentially dangerous or impactful, you MUST set need_user_approve=true
 
 2. Directory Verification:
-   - If the command will create new directories or files, first use the ls command to verify the parent directory exists and is the correct location
-   - For example, before running "mkdir foo/bar", first use ls to check that "foo" exists and is the intended parent directory
+   - If the command will create new directories or files, verify parents first (e.g., use `ls` to confirm the intended parent exists)
 
-3. Read File Command:
-   - When you need to read a file for the first time, always use `cat -n <file>` to display the contents with line numbers (default max 2000 lines)
-
-4. Edit File Command:
-   - Before updating any file, you must read the file content in the current conversation first
-   - When updating content in an existing file, always use sed for replacement except when the updated content is very large:
-     Example: `sed -i "start_line,end_line c new_content" <file>`
-   - When inserting content into an existing file, use sed for insertion:
-     Example: `sed -i "insert_line_number a insert_content" <file>`
-   - When searching within files, always use grep:
-     Example: `grep "search_pattern" <file>`
-   - Before editing a file, use sed to preview the specific lines with their line numbers if you are unsure of the exact range. Make sure it's the code you actually want to update.
-     Example: sed -n "start_line,end_line p" <file>
-
-Usage notes:
+3. Usage notes:
   - The command and need_user_approve arguments are required.
-  - You can specify an optional timeout in milliseconds (up to 120 seconds). If not specified, commands will timeout after 30 seconds.
-  - Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of `cd`. You may use `cd` if the User explicitly requests it.
-"""
+  - timeout is in seconds (default 30; practical max ~120).
+  - Prefer absolute paths; avoid `cd` unless the user explicitly requests it.
+""" 

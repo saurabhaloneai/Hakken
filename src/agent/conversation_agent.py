@@ -129,7 +129,21 @@ class ConversationAgent:
                 await self._recursive_message_handling()
                 
         except KeyboardInterrupt: #to avoid traceback
-            self.ui_interface.console.print("\n● Conversation ended. Goodbye! 👋\n")
+            try:
+                await self._maybe_prompt_and_save_on_exit()
+            except Exception:
+                pass
+            try:
+                ctx = self.history_manager.current_context_window
+                cost = self.api_client.total_cost
+                # Ensure terminal control-char echo is restored to clean up any ^C artifacts as we exit
+                try:
+                    self.ui_interface.restore_session_terminal_mode()
+                except Exception:
+                    pass
+                self.ui_interface.display_exit_panel(ctx, str(cost))
+            except Exception:
+                self.ui_interface.console.print("\n● Conversation ended. Goodbye! 👋\n")
             return
         except Exception as e:
             self.ui_interface.display_error(f"System error occurred: {e}")
@@ -232,7 +246,7 @@ class ConversationAgent:
                     interrupt_text = self._safe_poll_interrupt()
                     if interrupt_text is not None:
                         stripped = interrupt_text.strip()
-                        if stripped == "/":
+                        if stripped in ("ESC", "/"):
                             interrupted = True
                             spinner_stopped = self._ensure_spinner_stopped(spinner_stopped)
                             instr = self._capture_instruction_interactively()
@@ -284,28 +298,34 @@ class ConversationAgent:
                 if full_content.strip():
                     response_message = self._create_simple_message(full_content)
                 else:
-                    # no streamed chunks and no final message → print a helpful notice
-                    response_message = self._create_simple_message("sorry, i didn't receive a complete response.")
-                    self.ui_interface.display_assistant_message(response_message.content)
+                    # no streamed chunks and no final message
+                    if not interrupted:
+                        response_message = self._create_simple_message("sorry, i didn't receive a complete response.")
+                        self.ui_interface.display_assistant_message(response_message.content)
+                    else:
+                        response_message = self._create_simple_message("")
             elif not full_content.strip():
                 # no streamed chunks; if final message has content, show it, otherwise fallback to non-streaming
                 final_content = getattr(response_message, 'content', '')
                 if isinstance(final_content, str) and final_content.strip():
                     self.ui_interface.display_assistant_message(final_content)
                 else:
-                    try:
-                        self.ui_interface.display_info("no streamed content; retrying without streaming…")
-                        fallback_msg, fallback_usage = self.api_client.get_completion(request)
-                        self.ui_interface.display_assistant_message(fallback_msg.content)
-                        if fallback_usage:
-                            token_usage = fallback_usage
-                            self.history_manager.update_token_usage(token_usage)
-                        response_message = fallback_msg
-                    except Exception as fb_err:
-                        self.ui_interface.display_error(f"non-streaming fallback failed: {fb_err}")
-                        response_message = self._create_error_message(str(fb_err))
-                        self.ui_interface.display_assistant_message(response_message.content)
-                        early_exit = True
+                    if not interrupted:
+                        try:
+                            self.ui_interface.display_info("no streamed content; retrying without streaming…")
+                            fallback_msg, fallback_usage = self.api_client.get_completion(request)
+                            self.ui_interface.display_assistant_message(fallback_msg.content)
+                            if fallback_usage:
+                                token_usage = fallback_usage
+                                self.history_manager.update_token_usage(token_usage)
+                            response_message = fallback_msg
+                        except Exception as fb_err:
+                            self.ui_interface.display_error(f"non-streaming fallback failed: {fb_err}")
+                            response_message = self._create_error_message(str(fb_err))
+                            self.ui_interface.display_assistant_message(response_message.content)
+                            early_exit = True
+                    else:
+                        response_message = self._create_simple_message("")
 
         except Exception as e:
             self.ui_interface.stop_spinner()
@@ -378,9 +398,8 @@ class ConversationAgent:
                 await self._recursive_message_handling(show_thinking=True)
 
     def _print_context_window_and_total_cost(self) -> None:
-        context_usage = self.history_manager.current_context_window
-        total_cost = self.api_client.total_cost
-        self.ui_interface.display_status(context_usage, str(total_cost))
+        # suppress inline context/cost status in the output
+        return
 
     def _get_messages_with_cache_mark(self) -> List[Dict]:
         messages = self.history_manager.get_current_messages()
@@ -424,7 +443,7 @@ class ConversationAgent:
         try:
             self.ui_interface.pause_stream_display()
             self.ui_interface.flush_interrupts()
-            self.ui_interface.display_info("/ instruction mode - type and press Enter")
+            # silent capture; no banner
             instr = self.ui_interface.wait_for_interrupt(timeout=2.0)
             if not instr:
                 try:
@@ -502,44 +521,102 @@ class ConversationAgent:
             # Clear the queue so it's not applied twice
             self._pending_user_instruction = ""
 
-        for i, tool_call in enumerate(tool_calls):
-            is_last_tool = (i == len(tool_calls) - 1)
+        # Parse arguments and collect entries
+        entries = []
+        for idx, tool_call in enumerate(tool_calls):
             try:
                 args = json.loads(tool_call.function.arguments)
             except json.JSONDecodeError as e:
                 self.ui_interface.print_error(f"Tool parameter parsing failed: {e}")
-                tool_response = {
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "name": tool_call.function.name,
-                    "content": [
-                        {"type": "text", "text": "tool call failed due to JSONDecodeError"}
-                    ]
-                }
-                self.add_message(tool_response)
+                # Record immediate failure response
+                self._add_tool_response(
+                    tool_call,
+                    "tool call failed due to JSONDecodeError",
+                    is_last_tool=(idx == len(tool_calls) - 1),
+                )
                 continue
+            entries.append({
+                "index": idx,
+                "tool_call": tool_call,
+                "name": tool_call.function.name,
+                "args": args,
+                "should_execute": True,
+            })
 
-            should_execute = True
-            user_response = pending_for_tools
-            
-            if self.interrupt_manager.requires_approval(tool_call.function.name, args):
-                approval_content = self._format_approval_preview(tool_call.function.name, args)
-                approval_result = await self.ui_interface.confirm_action(approval_content)
-                if isinstance(approval_result, str):
-                    decision = approval_result.strip().lower()
-                    should_execute = decision in ("yes", "always")
-                    if decision == "always":
-                        try:
-                            self.interrupt_manager.set_always_allow(tool_call.function.name, args)
-                        except Exception:
-                            pass
-                else:
-                    should_execute = bool(approval_result)
+        # Handle approvals sequentially to avoid overlapping interactive prompts
+        for entry in entries:
+            try:
+                if self.interrupt_manager.requires_approval(entry["name"], entry["args"]):
+                    approval_content = self._format_approval_preview(entry["name"], entry["args"])
+                    approval_result = await self.ui_interface.confirm_action(approval_content)
+                    if isinstance(approval_result, str):
+                        decision = approval_result.strip().lower()
+                        entry["should_execute"] = decision in ("yes", "always")
+                        if decision == "always":
+                            try:
+                                self.interrupt_manager.set_always_allow(entry["name"], entry["args"])
+                            except Exception:
+                                pass
+                    else:
+                        entry["should_execute"] = bool(approval_result)
+            except Exception:
+                # On approval errors, skip execution conservatively
+                entry["should_execute"] = False
 
-            if should_execute:
-                await self._execute_tool(tool_call, args, is_last_tool, user_response)
-            else:
-                self._add_tool_response(tool_call, f"Tool execution skipped: {user_response}", is_last_tool)
+        # Partition into parallel-safe and sequential entries
+        parallel_safe_tools = {"read_file", "grep_search", "git_tools", "task_memory", "web_search"}
+
+        def _is_parallel_safe(tool_name: str, args: dict) -> bool:
+            if tool_name not in parallel_safe_tools:
+                return False
+            if tool_name == "task_memory":
+                action = str(args.get("action", "")).strip().lower()
+                return action in ("recall", "similar")
+            # git_tools operations are read-only per implementation; others are fine
+            return True
+
+        parallel_entries = [e for e in entries if e["should_execute"] and _is_parallel_safe(e["name"], e["args"])]
+        sequential_entries = [e for e in entries if e["should_execute"] and not _is_parallel_safe(e["name"], e["args"])]
+
+        # Add skip responses for entries that should not execute
+        skipped_indices = {e["index"] for e in entries if not e["should_execute"]}
+        for idx in skipped_indices:
+            tool_call = tool_calls[idx]
+            self._add_tool_response(tool_call, f"Tool execution skipped: {pending_for_tools}", is_last_tool=(idx == len(tool_calls) - 1))
+
+        # Determine which index is the last one overall for reminder placement
+        last_index_overall = len(tool_calls) - 1 if tool_calls else -1
+
+        # Execute parallel-safe entries concurrently
+        async def _run_one(entry):
+            tool_args = {k: v for k, v in entry["args"].items() if k != "need_user_approve"}
+            if pending_for_tools:
+                tool_args["user_instructions"] = pending_for_tools
+            try:
+                result = await self.tool_registry.run_tool(entry["name"], **tool_args)
+                content = json.dumps(result)
+            except Exception as e:
+                content = f"tool call failed, fail reason: {str(e)}"
+            return entry["index"], entry["tool_call"], content
+
+        if parallel_entries:
+            try:
+                if hasattr(self.ui_interface, '_spinner_active') and self.ui_interface._spinner_active:
+                    self.ui_interface.update_spinner_text(f"Running {len(parallel_entries)} tools in parallel…")
+            except Exception:
+                pass
+            results = await asyncio.gather(*(_run_one(e) for e in parallel_entries))
+            for idx, tool_call, content in sorted(results, key=lambda t: t[0]):
+                self._add_tool_response(tool_call, content, is_last_tool=(idx == last_index_overall and not sequential_entries))
+
+        # Execute remaining entries sequentially using existing pathway (preserves UI semantics)
+        for e in sequential_entries:
+            await self._execute_tool(
+                e["tool_call"],
+                e["args"],
+                is_last_tool=(e["index"] == last_index_overall),
+                user_response=pending_for_tools,
+            )
 
     def _format_approval_preview(self, tool_name: str, args: Dict[str, Any]) -> str:
         """Format a concise approval message with truncated/normalized args to avoid flooding the UI."""
@@ -651,6 +728,102 @@ class ConversationAgent:
                 self.tool_calls = None
         
         return ErrorMessage(error_msg)
+    
+    # --- Exit-time memory save support ---
+    def _get_prefs_path(self) -> Path:
+        base = Path(os.getcwd()) / ".hakken"
+        try:
+            base.mkdir(exist_ok=True)
+        except Exception:
+            pass
+        return base / "agent_prefs.json"
+
+    def _load_prefs(self) -> dict:
+        path = self._get_prefs_path()
+        try:
+            if path.exists():
+                import json as _json
+                return _json.loads(path.read_text(encoding="utf-8") or "{}")
+        except Exception:
+            pass
+        return {}
+
+    def _save_prefs(self, data: dict) -> None:
+        path = self._get_prefs_path()
+        try:
+            import json as _json
+            path.write_text(_json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    async def _save_task_memory_on_exit(self) -> None:
+        try:
+            # Construct a concise context snapshot
+            messages = self.history_manager.get_current_messages() or []
+            last_text = ""
+            for m in reversed(messages):
+                text = m.get("content", "") if isinstance(m, dict) else getattr(m, "content", "")
+                if isinstance(text, str) and text.strip():
+                    last_text = text.strip()
+                    break
+            if last_text and len(last_text) > 400:
+                last_text = last_text[:400].rstrip() + "…"
+
+            try:
+                env = self.prompt_manager.environment_collector.collect_all()
+                env_summary = f"cwd: {env.working_directory}\nplatform: {env.platform}"
+            except Exception:
+                env_summary = ""
+
+            description = "session autosave on exit"
+            context = (f"last_message:\n{last_text}\n\n{env_summary}").strip()
+
+            await self.tool_registry.run_tool(
+                "task_memory",
+                action="save",
+                description=description,
+                context=context,
+                progress={},
+                decisions=[],
+                files_changed=[],
+                next_steps=[],
+            )
+            try:
+                self.ui_interface.display_success("session saved to task memory")
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                self.ui_interface.display_error(f"autosave failed: {e}")
+            except Exception:
+                pass
+
+    async def _maybe_prompt_and_save_on_exit(self) -> None:
+        prefs = self._load_prefs()
+        if bool(prefs.get("exit_auto_save", False)):
+            await self._save_task_memory_on_exit()
+            return
+
+        try:
+            result = await self.ui_interface.confirm_action("save this session to task memory before exit?")
+        except Exception:
+            result = False
+
+        if isinstance(result, str):
+            decision = result.strip().lower()
+            if decision == "always":
+                prefs["exit_auto_save"] = True
+                self._save_prefs(prefs)
+                await self._save_task_memory_on_exit()
+                return
+            if decision == "yes":
+                await self._save_task_memory_on_exit()
+                return
+            return
+        else:
+            if bool(result):
+                await self._save_task_memory_on_exit()
+            return
     
     async def _handle_user_interrupt(self, user_input: str) -> None:
         interrupt_message = {
