@@ -117,15 +117,6 @@ class HakkenCodeUI:
         if current_dir == home_dir:
             self.console.print(f"[{self.colors['yellow']}]Note: You have launched Hakken in your home directory. For the best experience, launch it in a project directory instead.[/]")
     
-    def display_credit_warning(self, message: str = ""):
-        """Display credit warning exactly like Hakken Code"""
-        warning_text = Text()
-        warning_text.append("└ ", style=self.colors['red'])
-        warning_text.append("Credit balance too low · Add funds: https://console.anthropic.com/settings/billing", 
-                          style=self.colors['red'])
-        self.console.print(warning_text)
-        # avoid extra trailing blank lines
-    
     async def get_user_input(self, prompt: str = "", add_to_history: bool = True) -> str:
         """Get user input with exact Hakken Code styling"""
         # Show the exact prompt style: "> " with cursor
@@ -161,10 +152,6 @@ class HakkenCodeUI:
             return user_input
         except (KeyboardInterrupt, EOFError):
             raise KeyboardInterrupt()
-    
-    def display_shortcuts_help(self):
-        """Display shortcuts help like Hakken Code"""
-        self.console.print(f"[{self.colors['gray']}]? for shortcuts[/]")
     
     def start_assistant_response(self):
         """Start streaming response - no extra formatting, just content"""
@@ -417,21 +404,6 @@ class HakkenCodeUI:
         except queue.Empty:
             return None
     
-    @staticmethod
-    def get_available_spinner_styles():
-        """Get list of available Rich spinner styles"""
-        # Run `python -m rich.spinner` to see all available styles
-        return [
-            "dots", "dots2", "dots3", "dots4", "dots5", "dots6", "dots7", "dots8", 
-            "dots9", "dots10", "dots11", "dots12", "line", "line2", "pipe", "simpleDots",
-            "simpleDotsScrolling", "star", "star2", "flip", "hamburger", "growVertical", 
-            "growHorizontal", "balloon", "balloon2", "noise", "bounce", "boxBounce", 
-            "boxBounce2", "triangle", "arc", "circle", "squareCorners", "circleQuarters", 
-            "circleHalves", "squish", "toggle", "toggle2", "toggle3", "toggle4", "toggle5", 
-            "toggle6", "toggle7", "toggle8", "toggle9", "toggle10", "toggle11", "toggle12", 
-            "toggle13", "arrow", "arrow2", "arrow3", "bouncingBar", "bouncingBall"
-        ]
-    
     async def confirm_action(self, message: str) -> bool | str:
         """user-friendly yes/no/always confirmation.
         supports arrow-key selection inside the panel (↑/↓ + Enter). returns True/False or "always".
@@ -584,44 +556,7 @@ class HakkenCodeUI:
         self.todos = todos
     
     
-    def display_tool_execution(self, tool_name: str, args: dict, status: str = "running"):
-        """Display tool execution status"""
-        if status == "running":
-            self.display_info(f"Running {tool_name}...")
-        elif status == "success":
-            self.display_success(f"{tool_name} completed")
-        elif status == "error":
-            self.display_error(f"{tool_name} failed")
     
-    async def get_choice(self, prompt: str, choices: List[str]) -> str:
-        """Get user choice with Hakken Code styling"""
-        self.console.print(f"{prompt}")
-        for i, choice in enumerate(choices, 1):
-            choice_text = Text()
-            choice_text.append(f"  {i}. ", style=self.colors['gray'])
-            choice_text.append(choice, style=self.colors['white'])
-            self.console.print(choice_text)
-        
-        while True:
-            prompt_text = Text()
-            prompt_text.append(f"\nChoice (1-{len(choices)}): ", style=self.colors['gray'])
-            self.console.print(prompt_text, end="")
-            
-            try:
-                response = input("").strip()
-                if response.isdigit():
-                    choice_num = int(response)
-                    if 1 <= choice_num <= len(choices):
-                        return choices[choice_num - 1]
-                
-                self.display_error("Invalid choice. Please try again.")
-            except (ValueError, KeyboardInterrupt):
-                self.display_error("Invalid input.")
-    
-    
-    def display_status(self, context_usage: str = "", cost: str = ""):
-        """No-op: context/cost display suppressed per UX request"""
-        return
 
     def display_exit_panel(self, context_usage: str = "", cost: str = ""):
         """Show a clean exit panel on shutdown including optional context/cost."""
@@ -647,14 +582,5 @@ class HakkenCodeUI:
         )
         self.console.print(panel)
 
-    def show_user_message_with_credit_warning(self, user_message: str):
-        """Show user message followed by credit warning like in the image"""
-        # Display user input
-        user_text = Text()
-        user_text.append("> ", style=f"bold {self.colors['white']}")
-        user_text.append(user_message, style=self.colors['white'])
-        self.console.print(user_text)
-        
-        # Display credit warning immediately after
-        self.display_credit_warning()
+    
 
