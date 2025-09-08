@@ -1,11 +1,11 @@
 import json
 import sys
-import traceback
 import asyncio
 import os
 import hashlib
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Tuple
+import contextlib
 
 sys.path.insert(0, str(Path(__file__).parent.parent.absolute()))
 
@@ -81,42 +81,24 @@ class ConversationAgent:
     async def start_conversation(self) -> None:
         try:
             self.ui_interface.display_welcome_header()
-            system_message = {
-                "role": "system", 
-                "content": [
-                    {"type": "text", "text": self.prompt_manager.get_system_prompt()}
-                ]
-            }
+            system_message = {"role": "system", "content": [{"type": "text", "text": self.prompt_manager.get_system_prompt()}]}
             self.add_message(system_message)
             while True:
                 user_input = await self.ui_interface.get_user_input("What would you like me to help you with?")
-                user_message = {
-                    "role": "user", 
-                    "content": [
-                        {"type": "text", "text": user_input}
-                    ]
-                }
+                user_message = {"role": "user", "content": [{"type": "text", "text": user_input}]}
                 self.add_message(user_message)
                 await self._recursive_message_handling()
-        except KeyboardInterrupt:
-            try:
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            pass
+        finally:
+            with contextlib.suppress(Exception):
                 await self._maybe_prompt_and_save_on_exit()
-            except Exception:
-                pass
-            try:
+            with contextlib.suppress(Exception):
+                self.ui_interface.restore_session_terminal_mode()
+            with contextlib.suppress(Exception):
                 ctx = self.history_manager.current_context_window
                 cost = self.api_client.total_cost
-                try:
-                    self.ui_interface.restore_session_terminal_mode()
-                except Exception:
-                    pass
                 self.ui_interface.display_exit_panel(ctx, str(cost))
-            except Exception:
-                self.ui_interface.console.print("\n● Conversation ended. Goodbye! 👋\n")
-            return
-        except Exception as e:
-            self.ui_interface.display_error(f"System error occurred: {e}")
-            traceback.print_exc()
 
     async def start_task(self, task_system_prompt: str, user_input: str) -> str:
         self._is_in_task = True
@@ -139,16 +121,17 @@ class ConversationAgent:
 
         try:
             await self._recursive_message_handling()
-        except Exception as e:
-            self.ui_interface.display_error(f"System error occurred during running task: {e}")
-            traceback.print_exc()
-            sys.exit(1)
-        self._is_in_task = False
-        return self.history_manager.finish_chat_get_response()
+            return self.history_manager.finish_chat_get_response()
+        finally:
+            self._is_in_task = False
 
     async def _recursive_message_handling(self, show_thinking: bool = True) -> None:
         self.history_manager.auto_messages_compression()
-        self._begin_thinking_if_needed(show_thinking)
+        if show_thinking:
+            with contextlib.suppress(Exception):
+                self.ui_interface.stop_spinner()
+            self.ui_interface.start_spinner("Thinking...")
+            self._start_interrupt_flow()
         request = self._build_openai_request()
 
         response_message, full_content, token_usage, interrupted, early_exit = await self._get_assistant_response(request)
@@ -164,15 +147,6 @@ class ConversationAgent:
 
         await self._post_response_flow(response_message, full_content, interrupted)
         self._stop_interrupt_listener_safely()
-
-    def _begin_thinking_if_needed(self, show_thinking: bool) -> None:
-        if show_thinking:
-            try:
-                self.ui_interface.stop_spinner()
-            except Exception:
-                pass
-            self.ui_interface.start_spinner("Thinking...")
-            self._start_interrupt_flow()
 
     def _build_openai_request(self) -> Dict:
         messages = self._get_messages_with_cache_mark()
@@ -204,28 +178,15 @@ class ConversationAgent:
                 interrupt_text = self._safe_poll_interrupt()
                 if interrupt_text is not None:
                     stripped = interrupt_text.strip()
-                    if stripped in ("ESC", "/"):
+                    if stripped == "ESC":
                         interrupted = True
                         spinner_stopped = self._ensure_spinner_stopped(spinner_stopped)
                         instr = self._capture_instruction_interactively()
                         if instr:
-                            try:
+                            with contextlib.suppress(Exception):
                                 self.ui_interface.start_spinner("Applying instruction...")
-                            except Exception:
-                                pass
                             self._pending_user_instruction = instr
                         break
-                    elif stripped.lower() == "/stop":
-                        interrupted = True
-                        spinner_stopped = self._ensure_spinner_stopped(spinner_stopped)
-                        self._pending_user_instruction = interrupt_text
-                        break
-                    else:
-                        self._pending_user_instruction = stripped
-                        try:
-                            self.ui_interface.display_info("instruction queued; will apply after this step")
-                        except Exception:
-                            pass
 
                 if not spinner_stopped:
                     spinner_stopped = self._ensure_spinner_stopped(spinner_stopped)
@@ -246,7 +207,6 @@ class ConversationAgent:
         finally:
             if not spinner_stopped:
                 self.ui_interface.stop_spinner()
-                print()
             self.ui_interface.finish_assistant_response()
 
         return response_message, full_content, token_usage, interrupted
@@ -285,7 +245,7 @@ class ConversationAgent:
                         response_message = fallback_msg
                     except Exception as fb_err:
                         self.ui_interface.display_error(f"non-streaming fallback failed: {fb_err}")
-                        response_message = self._create_error_message(str(fb_err))
+                        response_message = self._create_simple_message(f"Sorry, I encountered a technical problem: {fb_err}")
                         self.ui_interface.display_assistant_message(response_message.content)
                         early_exit = True
                 else:
@@ -321,7 +281,7 @@ class ConversationAgent:
                     self.history_manager.update_token_usage(token_usage)
             except Exception as fallback_error:
                 self.ui_interface.display_error(f"Non-streaming mode also failed: {fallback_error}")
-                response_message = self._create_error_message(str(e))
+                response_message = self._create_simple_message(f"Sorry, I encountered a technical problem: {e}")
                 self.ui_interface.display_assistant_message(response_message.content)
                 early_exit = True
 
@@ -350,7 +310,6 @@ class ConversationAgent:
             await self._handle_tool_calls(self._extract_tool_calls(response_message))
             await self._recursive_message_handling(show_thinking=True)
         else:
-            self._print_context_window_and_total_cost()
             try:
                 last_msg = self.history_manager.get_current_messages()[-1]
                 last_content = last_msg.get("content", "") if isinstance(last_msg, dict) else ""
@@ -379,9 +338,6 @@ class ConversationAgent:
                 self.add_message(interrupt_message)
                 await self._recursive_message_handling(show_thinking=True)
 
-    def _print_context_window_and_total_cost(self) -> None:
-        return
-
     def _get_messages_with_cache_mark(self) -> List[Dict]:
         messages = self.history_manager.get_current_messages()
         if messages and "content" in messages[-1] and messages[-1]["content"]:
@@ -391,20 +347,14 @@ class ConversationAgent:
         return messages
 
     def _start_interrupt_flow(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self.ui_interface.display_interrupt_hint()
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             self.ui_interface.start_interrupt_listener()
-        except Exception:
-            pass
 
     def _stop_interrupt_listener_safely(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self.ui_interface.stop_interrupt_listener()
-        except Exception:
-            pass
 
     def _safe_poll_interrupt(self) -> Optional[str]:
         try:
@@ -415,7 +365,6 @@ class ConversationAgent:
     def _ensure_spinner_stopped(self, spinner_stopped: bool) -> bool:
         if not spinner_stopped:
             self.ui_interface.stop_spinner()
-            print()
             return True
         return spinner_stopped
 
@@ -425,21 +374,15 @@ class ConversationAgent:
             self.ui_interface.flush_interrupts()
             instr = self.ui_interface.wait_for_interrupt(timeout=2.0)
             if not instr:
-                try:
+                with contextlib.suppress(Exception):
                     self.ui_interface.stop_interrupt_listener()
-                except Exception:
-                    pass
                 instr = self.ui_interface.capture_instruction()
-                try:
+                with contextlib.suppress(Exception):
                     self.ui_interface.start_interrupt_listener()
-                except Exception:
-                    pass
             return instr
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 self.ui_interface.resume_stream_display()
-            except Exception:
-                pass
 
     def _estimate_tokens(self, obj: Any) -> int:
         try:
@@ -510,7 +453,8 @@ class ConversationAgent:
             try:
                 args = json.loads(tool_call.function.arguments)
             except json.JSONDecodeError as e:
-                self.ui_interface.print_error(f"Tool parameter parsing failed: {e}")
+                with contextlib.suppress(Exception):
+                    self.ui_interface.display_error(f"Tool parameter parsing failed: {e}")
                 self._add_tool_response(tool_call, "tool call failed due to JSONDecodeError", is_last_tool=(idx == len(tool_calls) - 1))
                 continue
             entries.append({
@@ -532,10 +476,8 @@ class ConversationAgent:
                         decision = approval_result.strip().lower()
                         entry["should_execute"] = decision in ("yes", "always")
                         if decision == "always":
-                            try:
+                            with contextlib.suppress(Exception):
                                 self.interrupt_manager.set_always_allow(entry["name"], entry["args"])
-                            except Exception:
-                                pass
                     else:
                         entry["should_execute"] = bool(approval_result)
             except Exception:
@@ -575,11 +517,9 @@ class ConversationAgent:
 
         if not parallel_entries:
             return
-        try:
+        with contextlib.suppress(Exception):
             if hasattr(self.ui_interface, '_spinner_active') and self.ui_interface._spinner_active:
                 self.ui_interface.update_spinner_text(f"Running {len(parallel_entries)} tools in parallel…")
-        except Exception:
-            pass
         results = await asyncio.gather(*(_run_one(e) for e in parallel_entries))
         for idx, tool_call, content in sorted(results, key=lambda t: t[0]):
             self._add_tool_response(tool_call, content, is_last_tool=(idx == last_index_overall and not sequential_entries))
@@ -622,9 +562,15 @@ class ConversationAgent:
         text = assistant_text.lower()
         if not text or len(text) > 4000:
             return None
+        # avoid auto-nudges on generic capability/overview replies
+        if any(p in text for p in ("i can help you with", "common use cases", "capabilities", "i'm designed to", "i can work with")):
+            return None
         if "check the todo.md" in text or "check todo.md" in text:
             return "use read_file to open 'todo.md' now, do not describe."
-        if "list" in text and ("directory" in text or "files" in text or "structure" in text):
+        # only nudge for directory listing when the assistant commits to act
+        if (("ls" in text or "list the " in text or "show the " in text) and
+            ("directory" in text or "files" in text or "structure" in text) and
+            any(m in text for m in ("i will", "i'll", "let me", "run ", "execute ", "here is the"))):
             return "use cmd_runner with 'ls -la' now, do not describe."
         if "open" in text and ("file" in text or "." in text):
             return "use read_file to open the stated file now, do not describe."
@@ -686,21 +632,12 @@ class ConversationAgent:
         
         return SimpleMessage(content)
 
-    def _create_error_message(self, error_msg: str):
-        class ErrorMessage:
-            def __init__(self, error_msg):
-                self.content = f"Sorry, I encountered a technical problem: {error_msg}"
-                self.role = "assistant"
-                self.tool_calls = None
-        
-        return ErrorMessage(error_msg)
+    
 
     def _get_prefs_path(self) -> Path:
         base = Path(os.getcwd()) / ".hakken"
-        try:
+        with contextlib.suppress(Exception):
             base.mkdir(exist_ok=True)
-        except Exception:
-            pass
         return base / "agent_prefs.json"
 
     def _load_prefs(self) -> dict:
@@ -752,15 +689,11 @@ class ConversationAgent:
                 files_changed=[],
                 next_steps=[],
             )
-            try:
+            with contextlib.suppress(Exception):
                 self.ui_interface.display_success("session saved to task memory")
-            except Exception:
-                pass
         except Exception as e:
-            try:
+            with contextlib.suppress(Exception):
                 self.ui_interface.display_error(f"autosave failed: {e}")
-            except Exception:
-                pass
 
     async def _maybe_prompt_and_save_on_exit(self) -> None:
         prefs = self._load_prefs()
