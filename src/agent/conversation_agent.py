@@ -12,18 +12,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.absolute()))
 from client.openai_client import APIClient, APIConfiguration
 from history.conversation_history import ConversationHistoryManager, HistoryConfiguration
 from interface.user_interface import HakkenCodeUI
-from tools.tool_interface import ToolRegistry
-from tools.command_runner import CommandRunner
-from tools.todo_writer import TodoWriteManager
-from tools.context_cropper import ContextCropper
-from tools.task_delegator import TaskDelegator
-from tools.task_memory_tool import TaskMemoryTool
+from tools.tool_manager import ToolManager
 from tools.human_interrupt import InterruptConfigManager
-from tools.file_reader import FileReader
-from tools.grep_search import GrepSearch
-from tools.git_tools import GitTools
-from tools.file_editor import FileEditor
-from tools.web_search import WebSearch
 from prompt.prompt_manager import PromptManager
 
 class AgentConfiguration:
@@ -41,35 +31,14 @@ class ConversationAgent:
             self.config.history_config, 
             self.ui_interface
         )
-        self.tool_registry = ToolRegistry()
-        self._register_tools()
+        self.tool_registry = ToolManager(self.ui_interface, self.history_manager, self)
         self.prompt_manager = PromptManager(self.tool_registry)
         self.interrupt_manager = InterruptConfigManager()
         self._is_in_task = False
         self._pending_user_instruction: str = ""
         self._tools_schema_cache: Optional[Tuple[str, int]] = None
 
-    def _register_tools(self) -> None:
-        cmd_runner = CommandRunner()
-        self.tool_registry.register_tool(cmd_runner)
-        todo_writer = TodoWriteManager(self.ui_interface)
-        self.tool_registry.register_tool(todo_writer)
-        context_cropper = ContextCropper(self.history_manager)
-        self.tool_registry.register_tool(context_cropper)
-        task_delegator = TaskDelegator(self.ui_interface, self)
-        self.tool_registry.register_tool(task_delegator)
-        task_memory = TaskMemoryTool()
-        self.tool_registry.register_tool(task_memory)
-        file_reader = FileReader()
-        self.tool_registry.register_tool(file_reader)
-        grep_search = GrepSearch()
-        self.tool_registry.register_tool(grep_search)
-        git_tools = GitTools()
-        self.tool_registry.register_tool(git_tools)
-        file_editor = FileEditor()
-        self.tool_registry.register_tool(file_editor)
-        web_search = WebSearch()
-        self.tool_registry.register_tool(web_search)
+    
 
     @property
     def messages(self) -> List[Dict]:
