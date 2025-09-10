@@ -8,19 +8,21 @@
 
 ## agent capabilities
 
-> `chat` — context awareness and message compression
+> `chat` — conversation with automatic message compression and context awareness
 >
-> `todo` — it plan first ; create todo.md(persitant) list and follow it. 
+> `planning` — mandatory todo creation for complex tasks (4+ steps) with persistent todo.md tracking
 > 
-> `streaming` — real‑time interrupts (/stop or inline) ; interrupts to change the plan
+> `streaming` — real-time response streaming with ESC-key interrupts for mid-conversation redirection
 >
-> `tools` — terminal commands, file read/edit, project grep, git ops, todos, task memory, task delegation
+> `tools` — comprehensive toolkit: terminal commands, file operations, project search, git workflows, web search, task memory, and specialized sub-agent delegation
 >
-> `context` — smart context cropping, prompt management
+> `context` — smart context cropping with user approval, intelligent prompt management, and environment-aware reminders
 >
-> `tokens` — budgeting with context window limits and output caps
+> `memory` — persistent task memory across sessions with similarity search and context recall
 >
-> `status` — cost tracking, status display
+> `tokens` — token budgeting with context window optimization and output caps
+>
+> `status` — real-time cost tracking, context usage monitoring, and session statistics
 
 
 ## data flow 
