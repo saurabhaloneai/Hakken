@@ -81,22 +81,26 @@ class APIClient:
             current_tool_call = None
             token_usage = None
 
-            q: "queue.Queue[Any]" = queue.Queue(maxsize=256)
+            # Use an unbounded queue to avoid producer backpressure causing early cutoff
+            q: "queue.Queue[Any]" = queue.Queue()
             _SENTINEL = object()
             _err_holder = {"err": None}
 
             def _producer():
                 try:
                     for ch in stream:
+                        # With an unbounded queue, this will not block under normal conditions
+                        # Prevents premature termination when the consumer is briefly busy
                         try:
-                            q.put(ch, timeout=1)
+                            q.put(ch)
                         except Exception:
+                            # If the consumer is gone or queue is unavailable, stop producing
                             break
                 except Exception as prod_err:
                     _err_holder["err"] = prod_err
                 finally:
                     try:
-                        q.put(_SENTINEL, timeout=1)
+                        q.put(_SENTINEL)
                     except Exception:
                         pass
 

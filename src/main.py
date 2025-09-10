@@ -1,13 +1,11 @@
-from agent.conversation_agent import ConversationAgent
+from agent.loop import ConversationAgent
 
 def cli():
     agent = ConversationAgent()
     import asyncio
     try:
         asyncio.run(agent.start_conversation())
-    except (KeyboardInterrupt, asyncio.CancelledError):
-        # Graceful exit on Ctrl+C without showing traceback
-        
+    except (KeyboardInterrupt, asyncio.CancelledError):        
         exit(0)
     except Exception as e:
         print(f"\nAn error occurred: {e}")

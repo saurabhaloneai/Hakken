@@ -5,7 +5,6 @@ from datetime import datetime
 from dataclasses import dataclass
 @dataclass 
 class EnvironmentInfo:
-    """Environment information container"""
     working_directory: str
     is_git_repo: bool
     git_repo_path: str
@@ -15,16 +14,13 @@ class EnvironmentInfo:
 
 
 class EnvironmentCollector:
-    """Collects environment information"""
     
     @staticmethod
     def get_working_directory() -> str:
-        """Get the current working directory"""
         return os.getcwd()
     
     @staticmethod
     def check_git_repository() -> tuple[bool, str]:
-        """Check if current directory is a git repository"""
         current_dir = Path(os.getcwd())
         
         # Check current directory and parent directories for .git folder
@@ -37,22 +33,18 @@ class EnvironmentCollector:
     
     @staticmethod
     def get_platform() -> str:
-        """Get the current platform"""
         return platform.system().lower()
     
     @staticmethod
     def get_os_version() -> str:
-        """Get the OS version information"""
         return platform.platform()
     
     @staticmethod
     def get_current_date() -> str:
-        """Get today's date"""
         return datetime.now().strftime("%Y-%m-%d")
     
     @classmethod
     def collect_all(cls) -> EnvironmentInfo:
-        """Collect all environment information"""
         is_git_repo, git_repo_path = cls.check_git_repository()
         
         return EnvironmentInfo(
