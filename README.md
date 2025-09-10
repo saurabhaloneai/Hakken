@@ -140,6 +140,4 @@ The agent will start an interactive conversation where you can ask questions and
 
 ## todo 
 
-- [ ] add the human in loop 
 - [ ] improve the ui 
-- [ ] smart context manager 
