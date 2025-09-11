@@ -71,7 +71,7 @@ sequenceDiagram
 ```
 
 > [!NOTE]
-> the current implmenation have some extra code which is not reuired if you are using good model lile sonnet-4
+> the current implmenation have some extra code which is not required if you are using good model lile sonnet-4
 > 
 
 ## installation
