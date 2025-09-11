@@ -2,7 +2,8 @@
 > [!IMPORTANT]
 > hakken is an ai agent which needs a lot of context to provide `good` intelligent assistance.
 > 
-> this is like a claude-code but `opensource` hehe and i have built this from scratch. 
+> this is like a claude-code but `opensource` hehe and i have built this from scratch.
+ 
 
 ![img](assets/images/interface.png)
 
@@ -69,8 +70,11 @@ sequenceDiagram
     end
 ```
 
+> [!NOTE]
+> the current implmenation have some extra code which is not reuired if you are using good model lile sonnet-4
+> 
 
-## Installation
+## installation
 
 ### Option 1: Global Install (Use from anywhere)
 Install globally with uv:
@@ -114,7 +118,7 @@ uv sync
    OPENAI_MODEL=gpt-4o-mini
    ```
 
-## Usage
+## usage
 
 ### If you installed with Option 1 (Global Install):
 Run hakken from anywhere:
@@ -125,14 +129,14 @@ hakken
 
 **Note:** You'll need to copy the `.env` file to your project directory or set environment variables globally.
 
-### If you installed with Option 2 (Local Development):
-Run hakken from the project directory:
+### if you installed with Option 2 (Local Development):
+run hakken from the project directory:
 
 ```bash
 uv run hakken
 ```
 
-The agent will start an interactive conversation where you can ask questions and get contextual assistance.
+the agent will start an interactive conversation where you can ask questions and get contextual assistance.
 
 **Important:** Make sure your `.env` file is properly configured before running hakken!
 

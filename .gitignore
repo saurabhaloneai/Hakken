@@ -6,4 +6,5 @@ hakken.egg-info
 .venv
 .hakken
 .ruff_cache
-.pytest_cache   
+.pytest_cache  
+tutorials 
