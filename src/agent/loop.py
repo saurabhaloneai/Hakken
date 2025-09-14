@@ -4,8 +4,9 @@ import contextlib
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from dataclasses import dataclass
+from enum import Enum
 from client.openai_client import APIClient, APIConfiguration
 from interface.user_interface import HakkenCodeUI
 from history.conversation_history import ConversationHistoryManager, HistoryConfiguration
@@ -25,6 +26,11 @@ class ResponseData:
 class Config:
     MAX_TEXT_LENGTH: int = 4000
     ARGS_PREVIEW_MAX: int = 140
+    STATUS_DELAY: float = 0.3
+    MAX_CONTEXT_BUFFER: int = 1024
+    DEFAULT_TEMPERATURE: float = 0.2
+    DEFAULT_MAX_TOKENS: int = 8000
+    DEFAULT_CONTEXT_LIMIT: int = 120000
 
 
 class StreamingResponseHandler:
@@ -36,6 +42,7 @@ class StreamingResponseHandler:
         self.logger = agent.logger
 
     async def handle_stream(self, request: Dict) -> ResponseData:
+        """Handle streaming response from API"""
         try:
             return await self._stream_response(request)
         except Exception as e:
@@ -133,10 +140,15 @@ class ToolExecutor:
         self.logger = agent.logger
 
     async def execute_tools(self, message: Any) -> None:
+        """Execute all tool calls from the message"""
         if not hasattr(message, 'tool_calls'):
             return
         
+        # FIXED: Make sure spinner is properly visible
+        self.agent._stop_spinner()  # Stop any existing spinner first
+        await asyncio.sleep(0.1)    # Brief pause to ensure clean state
         self.agent._start_spinner("Processing...")
+        
         pending = self.agent.state.get('pending_instruction', '').strip()
         self.agent.state['pending_instruction'] = ''
         
@@ -165,7 +177,12 @@ class ToolExecutor:
     async def _get_approvals(self, tools: List[Dict]) -> List[Dict]:
         for tool in tools:
             if self.interrupts.requires_approval(tool['name'], tool['args']):
+                # Stop spinner during approval dialog
+                self.agent._stop_spinner()
                 tool['approved'] = await self._get_approval(tool)
+                # Resume spinner if more tools to process
+                if any(t for t in tools if not t.get('approved', False)):
+                    self.agent._start_spinner("Processing...")
         return [t for t in tools if t['approved']]
 
     async def _execute_approved_tools(self, approved_tools: List[Dict], all_tools: List[Dict], 
@@ -175,13 +192,21 @@ class ToolExecutor:
             if not tool['approved']:
                 self._add_tool_response(tool['call'], f"Skipped: {pending}", 
                                       tool['index'] == len(tool_calls) - 1)
+
+        # Separate parallel and sequential tools
         parallel_tools = [t for t in approved_tools if self._is_parallel_safe(t['name'])]
         sequential_tools = [t for t in approved_tools if not self._is_parallel_safe(t['name'])]
+        
+        # Execute in parallel
         if parallel_tools:
             await self._execute_parallel_tools(parallel_tools, pending, len(tool_calls), sequential_tools)
         
+        # Execute sequentially
         for tool in sequential_tools:
             await self._run_single_tool(tool, pending, tool['index'] == len(tool_calls) - 1)
+        
+        # FIXED: Always stop spinner when done with all tools
+        self.agent._stop_spinner()
 
     async def _execute_parallel_tools(self, parallel_tools: List[Dict], pending: str, 
                                     total_tools: int, sequential_tools: List[Dict]) -> None:
@@ -268,6 +293,8 @@ class ConversationFlow:
         self.logger = agent.logger
 
     async def process_cycle(self) -> None:
+        """Process one complete request-response cycle"""
+        # Prepare request
         self.history.auto_messages_compression()
         self.agent._start_thinking()
         
@@ -292,6 +319,7 @@ class ConversationFlow:
             await self.process_cycle()
 
     async def _handle_nudges(self) -> bool:
+        """Handle automatic nudges to keep conversation flowing"""
         try:
             messages = self.history.get_current_messages()
             if not messages:
@@ -405,7 +433,7 @@ class ConversationAgent:
     def messages(self):
         return self.history.get_current_messages()
     
-    # ============ CORE CONVERSATION FLOW ============ #
+    # ============ CORE CONVERSATION FLOW ============
     
     async def _setup_conversation(self) -> None:
         self.ui.display_welcome_header()
@@ -413,7 +441,7 @@ class ConversationAgent:
         await self._add_message("system", system_prompt)
     
     async def _conversation_loop(self) -> None:
-        """main conversation loop."""
+        """Main conversation loop."""
         while True:
             user_input = await self.ui.get_user_input("What would you like me to help you with?")
             await self._add_message("user", user_input)
@@ -477,6 +505,10 @@ class ConversationAgent:
     
     def _start_spinner(self, text: str) -> None:
         try:
+            # FIXED: Ensure spinner stops cleanly before starting new one
+            self._stop_spinner()
+            import time
+            time.sleep(0.05)  # Brief pause for clean transition
             self.ui.start_spinner(text)
         except Exception as e:
             self.logger.debug(f"Failed to start spinner '{text}': {e}")
@@ -534,6 +566,9 @@ class ConversationAgent:
     
     async def _cleanup(self) -> None:
         try:
+            # FIXED: Stop spinner before cleanup operations
+            self._stop_spinner()
+            
             prefs = self._load_prefs()
             if prefs.get("exit_auto_save", False):
                 await self._save_session()

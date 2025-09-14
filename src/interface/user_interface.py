@@ -46,8 +46,8 @@ class HakkenCodeUI:
         self._old_term_attrs: Optional[list] = None
         self._session_term_fd: Optional[int] = None
         self._session_old_attrs: Optional[list] = None
-        # spacing state: prevent duplicate blank lines
-        self._needs_spacing = False 
+        # FIXED: Better spacing control
+        self._last_output_had_newline = True  # Track if last output ended with newline
         
         # Modern cyberpunk-inspired color scheme
         self.colors = {
@@ -66,7 +66,6 @@ class HakkenCodeUI:
             'input_bg': '#161b22',      # Dark input background
         }
         
-        # Spinner/status initialized lazily in start_spinner
         # Disable echo of control characters (e.g., ^C) during the session if possible
         try:
             if sys.stdin and hasattr(sys.stdin, "fileno") and sys.stdin.isatty():
@@ -84,21 +83,21 @@ class HakkenCodeUI:
                     self._session_old_attrs = self._session_old_attrs or None
         except Exception:
             pass
-    def _ensure_consistent_spacing(self):
-        """Ensure consistent spacing after any output"""
-        if self._needs_spacing:
+
+    def _ensure_spacing_before_output(self):
+        """Add spacing before output only when needed"""
+        if not self._last_output_had_newline:
             print()
-            self._needs_spacing = False
+            self._last_output_had_newline = True
     
-    def _mark_output(self):
-        """Mark that output was produced and spacing may be needed"""
-        self._needs_spacing = True
+    def _mark_output_with_newline(self, content: str = ""):
+        """Mark that output was produced, track if it ends with newline"""
+        self._last_output_had_newline = content.endswith('\n') if content else True
     
     def display_welcome_header(self):
         """Display the exact welcome header from Hakken Code"""
         # Get current working directory
         current_dir = os.getcwd()
-        home_dir = os.path.expanduser("~")
         
         # Create the bordered welcome panel exactly like the screenshot
         welcome_content = Text()
@@ -115,26 +114,24 @@ class HakkenCodeUI:
         )
         
         self.console.print(panel)
-        self._mark_output()
-        # reduce extra spacing after the welcome panel
+        print()  # Single blank line after panel
         
-        self._ensure_consistent_spacing()
         self.console.print(f"[{self.colors['gray']}]Tips for getting started:[/]")
         self.console.print(f"[{self.colors['gray']}]  Run /init to create a Hakken.md file with instructions for Hakken[/]")
         self.console.print(f"[{self.colors['gray']}]  Use Hakken to help with file analysis, editing, bash commands and git[/]")
         self.console.print(f"[{self.colors['gray']}]  Be as specific as you would with another engineer for the best results[/]")
-        self._mark_output()
-
         
         # Only show note if actually in home directory
         home_dir = os.path.expanduser("~")
         if current_dir == home_dir:
+            print()  # Blank line before warning
             self.console.print(f"[{self.colors['yellow']}]Note: You have launched Hakken in your home directory. For the best experience, launch it in a project directory instead.[/]")
-            self._mark_output()
-    
+        
+        self._last_output_had_newline = True
+        
     async def get_user_input(self, prompt: str = "", add_to_history: bool = True) -> str:
         """Get user input with consistent spacing"""
-        self._ensure_consistent_spacing()
+        self._ensure_spacing_before_output()
         
         # Drain any pending interrupts
         drained_input: Optional[str] = None
@@ -164,13 +161,13 @@ class HakkenCodeUI:
         if user_input and add_to_history:
             self.conversation.append(Message('user', user_input))
             
-        # Mark that we need spacing after input
-        self._mark_output()
+        self._last_output_had_newline = True  # Input always ends with newline
         return user_input
     
     def start_assistant_response(self):
-        """Start streaming response - no extra formatting, just content"""
-        self._ensure_consistent_spacing()
+        """Start streaming response - ensures clean transition from any previous state"""
+        # Make sure we have proper spacing before starting the response
+        self._ensure_spacing_before_output()
         self._is_streaming = True
         self._streaming_content = ""
         # Don't print anything here - let the content stream directly
@@ -180,36 +177,46 @@ class HakkenCodeUI:
         if self._is_streaming:
             self._streaming_content += chunk
             self.console.print(chunk, end="", style=self.colors['light_gray'])
-            # if chunk and chunk.strip():
-            #     self._mark_content_emitted()
+            self._mark_output_with_newline(chunk)
 
     def pause_stream_display(self):
         """Temporarily pause display output (visual separation for instruction mode)."""
         if self._is_streaming:
+            # Always add a newline when pausing stream (for tool execution)
             if self._streaming_content and self._streaming_content.strip():
-                self.ensure_single_blank_line()
+                print()  # Force newline before pausing
             self._is_streaming = False
             # Do not save partial stream into history yet
             # Content remains in _streaming_content if needed for later
+        self._last_output_had_newline = True
 
     def resume_stream_display(self):
         """Resume display output after instruction capture."""
+        # Ensure clean continuation after tool execution
+        self._ensure_spacing_before_output()
         self._is_streaming = True
     
     def finish_assistant_response(self):
         """Finish streaming and save to conversation"""
         if self._is_streaming and self._streaming_content:
             self.conversation.append(Message('assistant', self._streaming_content))
-            print()  # New line after streaming
-            self._mark_output()
+            # FIXED: Always ensure a newline after assistant response
+            print()  # Force a newline after every assistant response
             self._streaming_content = ""
         self._is_streaming = False
+        self._last_output_had_newline = True  # Mark that we now have a newline
     
     def display_assistant_message(self, content: str):
         """Display complete assistant message (non-streaming)"""
         if content and content.strip():
+            self._ensure_spacing_before_output()
             self.console.print(content, style=self.colors['light_gray'])
-            self._mark_output()
+            # FIXED: Ensure newline after assistant message
+            if not content.endswith('\n'):
+                print()
+                self._last_output_had_newline = True
+            else:
+                self._mark_output_with_newline(content)
             self.conversation.append(Message('assistant', content))
 
     def display_interrupt_hint(self):
@@ -239,47 +246,62 @@ class HakkenCodeUI:
     
     def display_error(self, message: str):
         """Display error message with Hakken Code styling"""
+        self._ensure_spacing_before_output()
         error_text = Text()
         error_text.append("Error: ", style=f"bold {self.colors['red']}")
         error_text.append(message, style=self.colors['red'])
         self.console.print(error_text)
-        self._mark_ouput()
+        self._last_output_had_newline = True
     
     def display_success(self, message: str):
         """Display success message"""
+        self._ensure_spacing_before_output()
         success_text = Text()
         success_text.append("✓ ", style=self.colors['green'])
         success_text.append(message, style=self.colors['green'])
         self.console.print(success_text)
-        self._mark_output()
+        self._last_output_had_newline = True
     
     def display_warning(self, message: str):
         """Display warning message"""
+        self._ensure_spacing_before_output()
         warning_text = Text()
         warning_text.append("⚠ ", style=self.colors['yellow'])
         warning_text.append(message, style=self.colors['yellow'])
         self.console.print(warning_text)
-        self._mark_output()
+        self._last_output_had_newline = True
     
     def display_info(self, message: str):
         """Display info message"""
+        self._ensure_spacing_before_output()
         self.console.print(f"[{self.colors['gray']}]{message}[/]")
-        self._mark_content_emitted()
+        self._last_output_had_newline = True
     
     def start_spinner(self, text: str = "Thinking", spinner_style: str = "dots"):
         """Start animated spinner with custom text and style (uses Rich Status)."""
         # Stop any existing status/spinner
-        if self._status is not None:
-            try:
-                self._status.stop()
-            except Exception:
-                pass
-            self._status = None
-
+        self.stop_spinner()
+        
+        # FIXED: Ensure spinner is visible by adding spacing before it
+        if not self._last_output_had_newline:
+            print()
+        
         # Create and start a new Status with the requested spinner style
-        self._status = Status(text, console=self.console, spinner=spinner_style, spinner_style=self.colors['blue'])
-        self._status.start()
-        self._spinner_active = True
+        self._status = Status(
+            text, 
+            console=self.console, 
+            spinner=spinner_style, 
+            spinner_style=self.colors['blue']
+        )
+        
+        # FIXED: Make sure spinner starts properly
+        try:
+            self._status.start()
+            self._spinner_active = True
+        except Exception as e:
+            # Fallback to simple text display if spinner fails
+            self.console.print(f"[{self.colors['blue']}]⚙️ {text}[/]")
+            self._spinner_active = False
     
     def stop_spinner(self):
         """Stop the animated spinner/status"""
@@ -288,16 +310,21 @@ class HakkenCodeUI:
                 self._status.stop()
             except Exception:
                 pass
-            self._status = None
+            finally:
+                self._status = None
         self._spinner_active = False
+        # FIXED: Ensure clean state after spinner stops
+        self._last_output_had_newline = True
     
     def update_spinner_text(self, text: str):
         """Update spinner/status text while it's running"""
-        if self._status is not None:
+        if self._status is not None and self._spinner_active:
             try:
                 self._status.update(text)
             except Exception:
-                pass
+                # If update fails, fall back to stopping and restarting
+                self.stop_spinner()
+                self.start_spinner(text)
 
     # --- Real-time interrupt support ---
     def start_interrupt_listener(self):
@@ -519,7 +546,7 @@ class HakkenCodeUI:
         if not todos_to_show:
             return
         
-        self._ensure_consistent_spacing()
+        self._ensure_spacing_before_output()
         
         header_text = Text()
         header_text.append("✦ ", style=f"bold {self.colors['pink']}")
@@ -563,18 +590,15 @@ class HakkenCodeUI:
         )
         
         self.console.print(panel)
-        self._mark_output()
+        self._last_output_had_newline = True
     
     def update_todos(self, todos: List[Dict[str, Any]]):
         """Update the todos list"""
         self.todos = todos
     
-    
-    
-
     def display_exit_panel(self, context_usage: str = "", cost: str = ""):
         """Show exit panel with consistent spacing"""
-        self._ensure_consistent_spacing()
+        self._ensure_spacing_before_output()
         
         body = Text()
         body.append("goodbye!\n", style=f"bold {self.colors['orange']}")
@@ -598,4 +622,4 @@ class HakkenCodeUI:
         )
         
         self.console.print(panel)
-        self._mark_output()
+        self._last_output_had_newline = True
