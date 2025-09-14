@@ -94,7 +94,7 @@ cd hakken
 uv sync
 ```
 
-## Setup
+## setup
 
 1. **Copy the environment template:**
    ```bash

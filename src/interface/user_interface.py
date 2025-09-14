@@ -47,7 +47,7 @@ class HakkenCodeUI:
         self._session_term_fd: Optional[int] = None
         self._session_old_attrs: Optional[list] = None
         # spacing state: prevent duplicate blank lines
-        self._last_output_was_blank = True
+        self._needs_spacing = False 
         
         # Modern cyberpunk-inspired color scheme
         self.colors = {
@@ -84,6 +84,15 @@ class HakkenCodeUI:
                     self._session_old_attrs = self._session_old_attrs or None
         except Exception:
             pass
+    def _ensure_consistent_spacing(self):
+        """Ensure consistent spacing after any output"""
+        if self._needs_spacing:
+            print()
+            self._needs_spacing = False
+    
+    def _mark_output(self):
+        """Mark that output was produced and spacing may be needed"""
+        self._needs_spacing = True
     
     def display_welcome_header(self):
         """Display the exact welcome header from Hakken Code"""
@@ -106,62 +115,62 @@ class HakkenCodeUI:
         )
         
         self.console.print(panel)
-        self._mark_content_emitted()
+        self._mark_output()
         # reduce extra spacing after the welcome panel
         
-        # Tips section exactly like screenshot  
+        self._ensure_consistent_spacing()
         self.console.print(f"[{self.colors['gray']}]Tips for getting started:[/]")
-        self._mark_content_emitted()
         self.console.print(f"[{self.colors['gray']}]  Run /init to create a Hakken.md file with instructions for Hakken[/]")
-        self._mark_content_emitted()
         self.console.print(f"[{self.colors['gray']}]  Use Hakken to help with file analysis, editing, bash commands and git[/]")
-        self._mark_content_emitted()
         self.console.print(f"[{self.colors['gray']}]  Be as specific as you would with another engineer for the best results[/]")
-        self._mark_content_emitted()
-        self.ensure_single_blank_line()
+        self._mark_output()
+
         
         # Only show note if actually in home directory
+        home_dir = os.path.expanduser("~")
         if current_dir == home_dir:
             self.console.print(f"[{self.colors['yellow']}]Note: You have launched Hakken in your home directory. For the best experience, launch it in a project directory instead.[/]")
-            self._mark_content_emitted()
+            self._mark_output()
     
     async def get_user_input(self, prompt: str = "", add_to_history: bool = True) -> str:
-        """Get user input with exact Hakken Code styling"""
-        # Show the exact prompt style: "> " with cursor
+        """Get user input with consistent spacing"""
+        self._ensure_consistent_spacing()
+        
+        # Drain any pending interrupts
+        drained_input: Optional[str] = None
         try:
+            while True:
+                queued = self.poll_interrupt()
+                if queued is None:
+                    break
+                s = queued.strip()
+                if s and s != "ESC":
+                    drained_input = s
+        except Exception:
+            pass
+
+        # Display prompt
+        prompt_text = Text()
+        prompt_text.append("> ", style=f"bold {self.colors['blue']}")
+        self.console.print(prompt_text, end="")
+
+        # Get input
+        if drained_input is not None:
+            self.console.print(drained_input, style=self.colors['pink'])
+            user_input = drained_input
+        else:
+            user_input = input("").strip()
             
-            drained_input: Optional[str] = None
-            try:
-                while True:
-                    queued = self.poll_interrupt()
-                    if queued is None:
-                        break
-                    s = queued.strip()
-                    if s and s != "ESC":
-                        drained_input = s
-            except Exception:
-                drained_input = drained_input or None
-
-            # Display the prompt exactly like Hakken Code
-            prompt_text = Text()
-            prompt_text.append("> ", style=f"bold {self.colors['blue']}")
-            self.console.print(prompt_text, end="")
-
-            # if we already have a drained line, echo it and use it as the input
-            if drained_input is not None:
-                self.console.print(drained_input, style=self.colors['pink'])
-                user_input = drained_input
-            else:
-                user_input = input("").strip()
-            if user_input and add_to_history:
-                # Add to conversation history if requested
-                self.conversation.append(Message('user', user_input))
-            return user_input
-        except (KeyboardInterrupt, EOFError):
-            raise KeyboardInterrupt()
+        if user_input and add_to_history:
+            self.conversation.append(Message('user', user_input))
+            
+        # Mark that we need spacing after input
+        self._mark_output()
+        return user_input
     
     def start_assistant_response(self):
         """Start streaming response - no extra formatting, just content"""
+        self._ensure_consistent_spacing()
         self._is_streaming = True
         self._streaming_content = ""
         # Don't print anything here - let the content stream directly
@@ -171,8 +180,8 @@ class HakkenCodeUI:
         if self._is_streaming:
             self._streaming_content += chunk
             self.console.print(chunk, end="", style=self.colors['light_gray'])
-            if chunk and chunk.strip():
-                self._mark_content_emitted()
+            # if chunk and chunk.strip():
+            #     self._mark_content_emitted()
 
     def pause_stream_display(self):
         """Temporarily pause display output (visual separation for instruction mode)."""
@@ -192,7 +201,7 @@ class HakkenCodeUI:
         if self._is_streaming and self._streaming_content:
             self.conversation.append(Message('assistant', self._streaming_content))
             print()  # New line after streaming
-            self._mark_blank_emitted()
+            self._mark_output()
             self._streaming_content = ""
         self._is_streaming = False
     
@@ -200,7 +209,7 @@ class HakkenCodeUI:
         """Display complete assistant message (non-streaming)"""
         if content and content.strip():
             self.console.print(content, style=self.colors['light_gray'])
-            self._mark_content_emitted()
+            self._mark_output()
             self.conversation.append(Message('assistant', content))
 
     def display_interrupt_hint(self):
@@ -234,7 +243,7 @@ class HakkenCodeUI:
         error_text.append("Error: ", style=f"bold {self.colors['red']}")
         error_text.append(message, style=self.colors['red'])
         self.console.print(error_text)
-        self._mark_content_emitted()
+        self._mark_ouput()
     
     def display_success(self, message: str):
         """Display success message"""
@@ -242,7 +251,7 @@ class HakkenCodeUI:
         success_text.append("✓ ", style=self.colors['green'])
         success_text.append(message, style=self.colors['green'])
         self.console.print(success_text)
-        self._mark_content_emitted()
+        self._mark_output()
     
     def display_warning(self, message: str):
         """Display warning message"""
@@ -250,7 +259,7 @@ class HakkenCodeUI:
         warning_text.append("⚠ ", style=self.colors['yellow'])
         warning_text.append(message, style=self.colors['yellow'])
         self.console.print(warning_text)
-        self._mark_content_emitted()
+        self._mark_output()
     
     def display_info(self, message: str):
         """Display info message"""
@@ -504,25 +513,24 @@ class HakkenCodeUI:
             return False
     
     def display_todos(self, todos: Optional[List[Dict[str, Any]]] = None):
-        """Display todos in elegant, clean format with visual hierarchy"""
+        """Display todos with consistent spacing"""
         todos_to_show = todos or self.todos
         
         if not todos_to_show:
             return
         
-        # Create elegant header with modern styling
+        self._ensure_consistent_spacing()
+        
         header_text = Text()
         header_text.append("✦ ", style=f"bold {self.colors['pink']}")
         header_text.append("Project Tasks", style=f"bold {self.colors['blue']}")
         
-        # Create a subtle border panel for the todos
         todo_content = Text()
         
         for i, todo in enumerate(todos_to_show, 1):
             status = todo.get('status', 'pending')
             task = todo.get('task', todo.get('content', 'No description'))
             
-            # Modern vibrant status indicators
             if status == 'completed':
                 icon = "✓"
                 icon_color = self.colors['green']
@@ -536,7 +544,6 @@ class HakkenCodeUI:
                 icon_color = self.colors['gray']
                 task_style = self.colors['light_gray']
             
-            # Add task with clean formatting
             todo_content.append("  ", style="")
             todo_content.append(icon, style=f"bold {icon_color}")
             todo_content.append("  ", style="")
@@ -545,7 +552,6 @@ class HakkenCodeUI:
             if i < len(todos_to_show):
                 todo_content.append("\n", style="")
         
-        # Create a clean panel with minimal borders
         panel = Panel(
             todo_content,
             title=header_text,
@@ -557,9 +563,7 @@ class HakkenCodeUI:
         )
         
         self.console.print(panel)
-        self._mark_content_emitted()
-        # keep a single blank line after the panel for readability
-        self.ensure_single_blank_line()
+        self._mark_output()
     
     def update_todos(self, todos: List[Dict[str, Any]]):
         """Update the todos list"""
@@ -569,7 +573,9 @@ class HakkenCodeUI:
     
 
     def display_exit_panel(self, context_usage: str = "", cost: str = ""):
-        """Show a clean exit panel on shutdown including optional context/cost."""
+        """Show exit panel with consistent spacing"""
+        self._ensure_consistent_spacing()
+        
         body = Text()
         body.append("goodbye!\n", style=f"bold {self.colors['orange']}")
         body.append("session ended. thanks for using hakken code.\n", style=self.colors['light_gray'])
@@ -578,11 +584,11 @@ class HakkenCodeUI:
             if context_usage:
                 body.append(f"context: {context_usage}\n", style=self.colors['gray'])
             if cost:
-                # ensure cost is prefixed with $ if not already
                 cost_str = str(cost)
                 if not cost_str.strip().startswith("$"):
                     cost_str = "$" + cost_str
                 body.append(f"cost: {cost_str}", style=self.colors['gray'])
+                
         panel = Panel(
             body,
             border_style=self.colors['orange'],
@@ -590,23 +596,6 @@ class HakkenCodeUI:
             padding=(1, 1),
             width=60
         )
+        
         self.console.print(panel)
-        self._mark_content_emitted()
-
-    # --- spacing helpers ---
-    def _mark_content_emitted(self):
-        """Mark that visible content was just printed, so a following blank line is allowed once."""
-        self._last_output_was_blank = False
-
-    def ensure_single_blank_line(self):
-        """Emit at most one blank line between sections. No-op if a blank was just emitted."""
-        if not self._last_output_was_blank:
-            print()
-            self._mark_blank_emitted()
-
-    def _mark_blank_emitted(self):
-        """Mark that a blank line was just printed."""
-        self._last_output_was_blank = True
-
-    
-
+        self._mark_output()
