@@ -143,10 +143,9 @@ class ToolExecutor:
         """Execute all tool calls from the message"""
         if not hasattr(message, 'tool_calls'):
             return
-        
-        # FIXED: Make sure spinner is properly visible
-        self.agent._stop_spinner()  # Stop any existing spinner first
-        await asyncio.sleep(0.1)    # Brief pause to ensure clean state
+  
+        self.agent._stop_spinner()  
+        await asyncio.sleep(0.1)   
         self.agent._start_spinner("Processing...")
         
         pending = self.agent.state.get('pending_instruction', '').strip()
@@ -177,7 +176,6 @@ class ToolExecutor:
     async def _get_approvals(self, tools: List[Dict]) -> List[Dict]:
         for tool in tools:
             if self.interrupts.requires_approval(tool['name'], tool['args']):
-                # Stop spinner during approval dialog
                 self.agent._stop_spinner()
                 tool['approved'] = await self._get_approval(tool)
                 # Resume spinner if more tools to process
@@ -193,19 +191,15 @@ class ToolExecutor:
                 self._add_tool_response(tool['call'], f"Skipped: {pending}", 
                                       tool['index'] == len(tool_calls) - 1)
 
-        # Separate parallel and sequential tools
         parallel_tools = [t for t in approved_tools if self._is_parallel_safe(t['name'])]
         sequential_tools = [t for t in approved_tools if not self._is_parallel_safe(t['name'])]
         
-        # Execute in parallel
         if parallel_tools:
             await self._execute_parallel_tools(parallel_tools, pending, len(tool_calls), sequential_tools)
         
-        # Execute sequentially
         for tool in sequential_tools:
             await self._run_single_tool(tool, pending, tool['index'] == len(tool_calls) - 1)
         
-        # FIXED: Always stop spinner when done with all tools
         self.agent._stop_spinner()
 
     async def _execute_parallel_tools(self, parallel_tools: List[Dict], pending: str, 
@@ -293,21 +287,16 @@ class ConversationFlow:
         self.logger = agent.logger
 
     async def process_cycle(self) -> None:
-        """Process one complete request-response cycle"""
-        # Prepare request
         self.history.auto_messages_compression()
         self.agent._start_thinking()
         
-        # Get AI response
         response = await self.agent.streaming_handler.handle_stream(self.agent._build_request())
         if response.early_exit:
             return
         
-        # Handle response
         self.agent._stop_interrupts()
         self.agent._save_response(response)
 
-        # Continue conversation based on response
         if response.interrupted:
             await self.process_cycle()
         elif self.agent._has_tools(response.message):
@@ -400,7 +389,6 @@ class ConversationAgent:
         self.interrupts = InterruptConfigManager()
         self.logger = logging.getLogger(__name__)
         
-        # Initialize the extracted components
         self.streaming_handler = StreamingResponseHandler(self)
         self.tool_executor = ToolExecutor(self)
         self.conversation_flow = ConversationFlow(self)
@@ -505,10 +493,9 @@ class ConversationAgent:
     
     def _start_spinner(self, text: str) -> None:
         try:
-            # FIXED: Ensure spinner stops cleanly before starting new one
             self._stop_spinner()
             import time
-            time.sleep(0.05)  # Brief pause for clean transition
+            time.sleep(0.05) 
             self.ui.start_spinner(text)
         except Exception as e:
             self.logger.debug(f"Failed to start spinner '{text}': {e}")
@@ -566,7 +553,6 @@ class ConversationAgent:
     
     async def _cleanup(self) -> None:
         try:
-            # FIXED: Stop spinner before cleanup operations
             self._stop_spinner()
             
             prefs = self._load_prefs()
