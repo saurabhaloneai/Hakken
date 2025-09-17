@@ -7,4 +7,6 @@ hakken.egg-info
 .hakken
 .ruff_cache
 .pytest_cache  
-tutorials 
+
+tutorials/react_agent
+tutorials/plan
