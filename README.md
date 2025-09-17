@@ -111,9 +111,6 @@ uv sync
    OPENAI_MODEL=z-ai/glm-4.5-air:free
    ```
 
-
-   ```
-
 ## usage
 
 ### If you installed with Option 1 (Global Install):
@@ -140,4 +137,5 @@ the agent will start an interactive conversation where you can ask questions and
 
 ## todo 
 
+- [in process] add tutorials 
 - [ ] improve the ui 
