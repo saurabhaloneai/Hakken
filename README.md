@@ -29,48 +29,35 @@
 ## data flow 
 
 ```mermaid
-graph TB
-    %% User Entry Points
-    User[👤 User] 
-    CLI[🖥️ CLI Entry Point]
+sequenceDiagram
+    participant User as 👤 User
+    participant Agent as 🤖 Agent
+    participant API as 🌐 API Client
+    participant UI as 🎨 UI Manager
+    participant Tools as 🔧 Tool Manager
+    participant History as 📚 History Manager
     
-    %% Main Components
-    Agent[🤖 Agent Core]
-    UI[🎨 HakkenCodeUI]
-    API[🌐 APIClient]
-    History[📚 HistoryManager]
-    Tools[🔧 ToolManager]
-    Prompts[📝 PromptManager]
+    User->>Agent: Input message
+    Agent->>History: Add user message
+    Agent->>History: Get conversation history
+    Agent->>Tools: Get tool descriptions
+    Agent->>API: Send request with tools
     
-    %% Tool Types
-    subgraph ToolTypes[🛠️ Available Tools]
-        FileOps[📁 File Operations<br/>FileReader, FileEditor]
-        Search[🔍 Search Tools<br/>GrepSearch, WebSearch]
-        System[⚙️ System Tools<br/>CommandRunner, GitTools]
-        Task[📋 Task Tools<br/>TodoWriter, TaskDelegator]
-        Memory[🧠 Memory Tools<br/>TaskMemory, ContextCropper]
+    API-->>Agent: Stream response with tool calls
+    Agent->>UI: Display streaming content
+    
+    loop For each tool call
+        Agent->>Tools: Execute tool(name, args)
+        Tools->>Tools: Find & run specific tool
+        Tools-->>Agent: Return tool result
+        Agent->>UI: Show tool execution status
+        Agent->>History: Add tool response
     end
     
-    %% Data Flow Connections
-    User --> CLI
-    CLI --> Agent
-    Agent --> UI
-    Agent --> API
-    Agent --> History
-    Agent --> Tools
-    Agent --> Prompts
-    
-    Tools --> ToolTypes
-    
-    %% Feedback loops
-    API -.-> Agent
-    Tools -.-> Agent
-    UI -.-> User
-    History -.-> Agent
-    
-    style Agent fill:#ff6b35,stroke:#fff,stroke-width:3px,color:#fff
-    style User fill:#00d4ff,stroke:#fff,stroke-width:2px,color:#fff
-    style ToolTypes fill:#00ff88,stroke:#fff,stroke-width:2px,color:#000
+    Agent->>API: Continue conversation
+    API-->>Agent: Final response
+    Agent->>UI: Display final message
+    Agent->>History: Save complete interaction
 ```
 
 > [!NOTE]
