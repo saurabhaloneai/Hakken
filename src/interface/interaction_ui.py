@@ -12,29 +12,29 @@ from interface.base_ui import BaseUI, Message
 
 
 class InteractionUI(BaseUI):
-    """Interaction UI class for user input, confirmations, and approvals"""
+     
     
     async def get_user_input(self, prompt: str = "", add_to_history: bool = True) -> str:
         self._ensure_spacing_before_output()
         
-        # Display prompt
+        
         prompt_text = Text()
         prompt_text.append("> ", style=f"bold {self.colors['blue']}")
         self.console.print(prompt_text, end="")
 
-        # Get input with better error handling
+        
         try:
             user_input = input("").strip()
             
-            # Filter out any escape sequences or control characters
+            
             user_input = ''.join(char for char in user_input if ord(char) >= 32 or char in '\t\n')
             
-            # If input is empty or just whitespace, return empty string
+            
             if not user_input:
                 return ""
                 
         except (EOFError, KeyboardInterrupt):
-            print()  # Add newline after interrupt
+            print()  
             return ""
         except Exception as e:
             self.display_error(f"Input error: {e}")
@@ -43,7 +43,7 @@ class InteractionUI(BaseUI):
         if user_input and add_to_history:
             self.conversation.append(Message('user', user_input))
             
-        self._last_output_had_newline = True  # Input always ends with newline
+        self._last_output_had_newline = True  
         return user_input
     
     def start_assistant_response(self):
@@ -52,43 +52,40 @@ class InteractionUI(BaseUI):
         self._streaming_content = ""
     
     def stream_content(self, chunk: str):
-        """Stream content exactly like Hakken - just print the content"""
+         
         if self._is_streaming:
             self._streaming_content += chunk
             self.console.print(chunk, end="", style=self.colors['light_gray'])
             self._mark_output_with_newline(chunk)
 
     def pause_stream_display(self):
-        """Temporarily pause display output (visual separation for instruction mode)."""
+         
         if self._is_streaming:
-            # Always add a newline when pausing stream (for tool execution)
+            
             if self._streaming_content and self._streaming_content.strip():
-                print()  # Force newline before pausing
+                print()  
             self._is_streaming = False
-            # Do not save partial stream into history yet
-            # Content remains in _streaming_content if needed for later
+             
         self._last_output_had_newline = True
 
     def resume_stream_display(self):
-        """Resume display output after instruction capture."""
-        # Ensure clean continuation after tool execution
+         
+        
         self._ensure_spacing_before_output()
         self._is_streaming = True
     
     def finish_assistant_response(self):
-        """Finish streaming and save to conversation"""
+        
         if self._is_streaming and self._streaming_content:
             self.conversation.append(Message('assistant', self._streaming_content))
-            # FIXED: Always ensure a newline after assistant response
-            print()  # Force a newline after every assistant response
+            
+            print()  
             self._streaming_content = ""
         self._is_streaming = False
-        self._last_output_had_newline = True  # Mark that we now have a newline
+        self._last_output_had_newline = True  
     
     def capture_instruction(self) -> Optional[str]:
-        """Prompt user in a clean input mode while streaming is paused.
-        Returns the instruction string or None if empty.
-        """
+        
         try:
             prompt_text = Text()
             prompt_text.append("> ", style=f"bold {self.colors['pink']}")
@@ -99,12 +96,9 @@ class InteractionUI(BaseUI):
             return None
     
     async def confirm_action(self, message: str) -> bool | str:
-        """User confirmation: returns True/False or "always".
-        Default behavior: simple prompt (y/n/a). Set env HAKKEN_APPROVAL_UI=arrow to use ↑/↓ UI.
-        Non-interactive environments auto-approve/deny per env defaults.
-        """
+        
         try:
-            # non-interactive fallback (e.g., running inside editor without a tty)
+            
             if not sys.stdin or not sys.stdin.isatty():
                 auto_approve = os.environ.get("HAKKEN_AUTO_APPROVE", "").strip().lower()
                 approval_default = os.environ.get("HAKKEN_APPROVAL_DEFAULT", "").strip().lower()
@@ -114,17 +108,17 @@ class InteractionUI(BaseUI):
                 self.display_info("auto-denying (non-interactive). set HAKKEN_AUTO_APPROVE=1 to allow.")
                 return False
 
-            # interactive prompt
-            # stop spinner to avoid overlap
+            
+            
             if self._spinner_active:
                 try:
                     self.stop_spinner()
                 except Exception:
                     pass
 
-            # suspend background ESC listener during modal
+            
             try:
-                pass  # No longer need to manage modal state
+                pass  
             except Exception:
                 pass
 
@@ -137,7 +131,7 @@ class InteractionUI(BaseUI):
             prefer_arrow_ui = os.environ.get("HAKKEN_APPROVAL_UI", "").strip().lower() == "arrow"
 
             if not prefer_arrow_ui:
-                # Simple one-shot prompt
+                
                 body = Text()
                 body.append(message + "\n\n", style=self.colors['light_gray'])
                 body.append("Options: ", style=self.colors['gray'])
@@ -147,7 +141,7 @@ class InteractionUI(BaseUI):
                 title_text = Text()
                 title_text.append("approval required", style=f"bold {self.colors['orange']}")
 
-                # Make panel responsive
+                
                 terminal_width = self.console.size.width
                 panel_width = min(80, terminal_width - 4)
 
@@ -176,10 +170,10 @@ class InteractionUI(BaseUI):
                     return False
                 if answer in ("a", "always", "3"):
                     return "always"
-                # Unrecognized -> default
+               
                 return True if default_yes else False
 
-            # Arrow-key UI (optional)
+            
             def render_panel(sel: int) -> Panel:
                 body = Text()
                 body.append(message + "\n\n", style=self.colors['light_gray'])
@@ -190,7 +184,7 @@ class InteractionUI(BaseUI):
                     body.append(prefix + label + ("\n" if idx < len(choices)-1 else ""), style=style)
                 title_text = Text()
                 title_text.append("approval required", style=f"bold {self.colors['orange']}")
-                # Make panel responsive to terminal width
+                
                 terminal_width = self.console.size.width
                 panel_width = min(80, terminal_width - 4)
                 
@@ -208,7 +202,7 @@ class InteractionUI(BaseUI):
             old_settings = termios.tcgetattr(fd)
             try:
                 tty.setcbreak(fd)
-                # Drain any pending input bytes before starting selection loop
+                
                 try:
                     while select.select([sys.stdin], [], [], 0)[0]:
                         _ = sys.stdin.read(1)
@@ -225,11 +219,11 @@ class InteractionUI(BaseUI):
                                     selected = (selected - 1) % len(choices)
                                 elif seq2 == "B":  # down
                                     selected = (selected + 1) % len(choices)
-                                # ignore left/right
+                                
                                 live.update(render_panel(selected))
                                 continue
                             else:
-                                # standalone ESC: treat as cancel -> default selection
+                                
                                 break
                         if ch in ("\r", "\n"):
                             break
@@ -242,18 +236,18 @@ class InteractionUI(BaseUI):
                         if ch.lower() in ("3", "a"):
                             selected = 2
                             break
-                        # any other key: re-render unchanged
+                        
                         live.update(render_panel(selected))
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
-            # Re-arm ESC listener after approval selection
+            
             try:
                 pass  # No longer need to restart interrupt listener
             except Exception:
                 pass
             finally:
-                pass  # No longer need to manage _in_modal_prompt
+                pass  
 
             result = choices[selected]
             if result == "yes":
@@ -265,9 +259,9 @@ class InteractionUI(BaseUI):
             return False
     
     async def wait_for_user_approval(self, message: str) -> tuple[bool, str]:
-        """Wait for user approval - returns (approved, user_input)"""
+        
         try:
-            # Show current todos before asking for approval if we have any
+            
             if self.todos:
                 self.display_todos()
                 
@@ -282,7 +276,7 @@ class InteractionUI(BaseUI):
             return False, "denied"
     
     def show_preparing_tool(self, tool_name: str, args: dict):
-        """Show context-aware spinner for tool preparation"""
+        
         # Map tool names to appropriate spinner messages
         spinner_messages = {
             "file_editor": "Writing files...",
@@ -297,8 +291,8 @@ class InteractionUI(BaseUI):
             "task_delegator": "Delegating task..."
         }
         
-        # Get appropriate message or default
+        
         message = spinner_messages.get(tool_name, f"Using {tool_name}...")
         
-        # Start spinner with context-aware message
+        
         self.start_spinner(message, "dots")

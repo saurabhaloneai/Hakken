@@ -8,12 +8,10 @@ from interface.user_interface import HakkenCodeUI
 
 
 class AgentTaskException(Exception):
-    """Custom exception for agent task failures."""
     pass
 
 
 class SimpleMessage:
-    """Simple message container for API responses."""
     def __init__(self, content):
         self.content = content
         self.role = "assistant"
@@ -21,7 +19,6 @@ class SimpleMessage:
 
 
 class ErrorMessage:
-    """Error message container for failed operations."""
     def __init__(self, error_msg):
         self.content = f"Sorry, I encountered a technical problem: {error_msg}"
         self.role = "assistant"
@@ -29,11 +26,7 @@ class ErrorMessage:
 
 
 class Agent:
-    """
-    Main agent class that handles chat flow and tool interactions.
-    Manages conversation state and coordinates between components.
-    """
-    
+   
     def __init__(self):
         self._api_client = APIClient()
         self._ui_manager = HakkenCodeUI()
@@ -95,7 +88,6 @@ class Agent:
         return self._history_manager.finish_chat_get_response()
 
     async def _recursive_message_handling(self):
-        # Prevent infinite recursion
         if self._recursion_depth >= self._max_recursion_depth:
             self._ui_manager.print_error("Maximum conversation depth reached")
             return
@@ -214,7 +206,6 @@ class Agent:
             await self._execute_tool(tool_call, args, is_last_tool)
 
     async def _execute_tool(self, tool_call, args, is_last_tool=False):
-        """Execute a tool call and handle the response."""
         self._ui_manager.show_preparing_tool(tool_call.function.name, args)
         
         try:

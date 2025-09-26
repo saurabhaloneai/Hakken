@@ -61,7 +61,7 @@ sequenceDiagram
 ```
 
 > [!NOTE]
-> the current implmenation have some extra code which is not required if you are using good model lile sonnet-4
+>  i have tested this agent with anthropic, xai and zai models. it works great with sonnet-4 and grok-4. it used to work great with z.ai modlels idk what happen either some issue with openrouter apis or idk i am not getting reponse as i used to get. 
 > 
 
 ## installation

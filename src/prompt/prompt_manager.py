@@ -22,8 +22,7 @@ class EnvironmentCollector:
     @staticmethod
     def check_git_repository() -> tuple[bool, str]:
         current_dir = Path(os.getcwd())
-        
-        # Check current directory and parent directories for .git folder
+     
         for path in [current_dir] + list(current_dir.parents):
             git_dir = path / '.git'
             if git_dir.exists():

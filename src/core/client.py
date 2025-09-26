@@ -14,17 +14,13 @@ load_dotenv()
 class APIClient:
     
     def __init__(self):
-        """
-        Initialize the API client with environment variables
-        """
+       
         self._total_cost = 0
         
-        # Read configuration from environment variables
         self.api_key = os.getenv("OPENAI_API_KEY")
         self.base_url = os.getenv("OPENAI_BASE_URL")
         self.model = os.getenv("OPENAI_MODEL")
         
-        # Check if required environment variables exist
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
         if not self.base_url:
@@ -42,20 +38,10 @@ class APIClient:
         return round(self._total_cost, 2)
     
     def get_completion(self, request_params: Dict[str, Any]) -> Tuple[Any, Any]:
-        """
-        Send chat completion request and return message and token usage (non-streaming)
-        
-        Args:
-            request_params: Request parameters dictionary, including model, messages, etc.
-            
-        Returns:
-            Tuple[message, token_usage]: Return AI assistant reply message object and token usage
-        """
-        # Make a copy to avoid modifying the original request
+       
         params = request_params.copy()
         params["model"] = self.model
         
-        # Ensure streaming parameters are removed for non-streaming mode
         params.pop("stream", None)
         params.pop("stream_options", None)
         
@@ -73,16 +59,7 @@ class APIClient:
             raise Exception(f"API request failed: {str(e)}")
     
     def get_completion_stream(self, request_params: Dict[str, Any]) -> Generator[str, None, None]:
-        """
-        Send streaming chat completion request and return generator, including token usage
-        
-        Args:
-            request_params: Request parameters dictionary, including model, messages, etc.
-            
-        Yields:
-            Gradually return AI assistant reply content chunks, finally return complete message object and token usage
-        """
-        # Make a copy to avoid modifying the original request
+       
         params = request_params.copy()
         params["model"] = self.model
         params["stream"] = True

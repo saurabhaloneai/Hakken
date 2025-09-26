@@ -1,6 +1,6 @@
 # Hakken Agent Data Flow Diagram
 
-## Main Architecture Overview
+## main architecture overview
 
 ```mermaid
 graph TB
@@ -263,27 +263,4 @@ mindmap
         History config
 ```
 
-## Key Data Flows Explained
 
-### 1. **User Input → Response Flow**
-- User types message → UI captures → Agent processes → API call → Stream response → Display to user
-
-### 2. **Tool Execution Flow** 
-- API returns tool calls → Agent parses → ToolManager executes → Results added to history → Continue conversation
-
-### 3. **Recursion Management**
-- Each conversation turn increments depth counter
-- Prevents infinite loops with 50-call limit
-- Resets on new task start
-
-### 4. **History Management**
-- All messages stored in ConversationHistoryManager
-- Auto-compression when context gets too large
-- Token usage tracking for cost management
-
-### 5. **Error Handling**
-- Stream failures fall back to non-stream mode
-- Tool errors are captured and continue conversation
-- Recursion limits prevent stack overflow
-
-This architecture provides a robust, scalable chat agent with tool integration, proper error handling, and efficient conversation management!
