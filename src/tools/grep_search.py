@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Dict, Any, Optional
-from .tool_interface import ToolInterface, ToolResult
+from tools.tool_interface import ToolInterface, ToolResult
 
 
 class GrepSearch(ToolInterface):

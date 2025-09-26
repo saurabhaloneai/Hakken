@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Optional, Dict, Any
-from .tool_interface import ToolInterface
+from tools.tool_interface import ToolInterface
 
 
 class FileReader(ToolInterface):

@@ -1,171 +1,140 @@
 from openai import OpenAI
-from typing import Dict, Any, Generator, Tuple
+from typing import Dict, Any, Optional, Generator, Tuple
+import json
 import os
 from dotenv import load_dotenv
 from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageFunctionToolCall
 from openai.types.chat.chat_completion_message_function_tool_call import Function
-from dataclasses import dataclass
-import threading
-import queue
 
+
+# Load environment variables
 load_dotenv()
-
-
-@dataclass
-class APIConfiguration:
-    api_key: str
-    base_url: str
-    model: str
-    
-    @classmethod
-    def from_environment(cls) -> 'APIConfiguration':
-        api_key = os.getenv("OPENAI_API_KEY")
-        base_url = os.getenv("OPENAI_BASE_URL")
-        model = os.getenv("OPENAI_MODEL")
-        
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable not set")
-        if not base_url:
-            raise ValueError("OPENAI_BASE_URL environment variable not set")
-        if not model:
-            raise ValueError("OPENAI_MODEL environment variable not set")
-            
-        return cls(api_key=api_key, base_url=base_url, model=model)
 
 
 class APIClient:
     
-    def __init__(self, config: APIConfiguration):
-        self.config = config
+    def __init__(self):
+        """
+        Initialize the API client with environment variables
+        """
+        self._total_cost = 0
+        
+        # Read configuration from environment variables
+        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.base_url = os.getenv("OPENAI_BASE_URL")
+        self.model = os.getenv("OPENAI_MODEL")
+        
+        # Check if required environment variables exist
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY environment variable not set")
+        if not self.base_url:
+            raise ValueError("OPENAI_BASE_URL environment variable not set")
+        if not self.model:
+            raise ValueError("OPENAI_MODEL environment variable not set")
+        
         self.client = OpenAI(
-            api_key=config.api_key,
-            base_url=config.base_url
+            api_key=self.api_key,
+            base_url=self.base_url
         )
-        self._total_cost = 0.0
     
     @property
-    def total_cost(self) -> float:
+    def total_cost(self):
         return round(self._total_cost, 2)
     
     def get_completion(self, request_params: Dict[str, Any]) -> Tuple[Any, Any]:
-        # work on a copy and ensure streaming flags are not present
-        params = dict(request_params)
+        """
+        Send chat completion request and return message and token usage (non-streaming)
+        
+        Args:
+            request_params: Request parameters dictionary, including model, messages, etc.
+            
+        Returns:
+            Tuple[message, token_usage]: Return AI assistant reply message object and token usage
+        """
+        # Make a copy to avoid modifying the original request
+        params = request_params.copy()
+        params["model"] = self.model
+        
+        # Ensure streaming parameters are removed for non-streaming mode
         params.pop("stream", None)
         params.pop("stream_options", None)
-        params["model"] = self.config.model
+        
         try:
             response = self.client.chat.completions.create(**params)
             message = response.choices[0].message
             token_usage = response.usage
+            cost = getattr(token_usage, 'model_extra', {})                                                                                  
+            if isinstance(cost, dict):                                                                                                      
+                self._total_cost += cost.get("cost", 0)                                                                                     
             
-            cost = getattr(token_usage, 'model_extra', {})
-            if isinstance(cost, dict):
-                self._total_cost += cost.get("cost", 0)
                 
             return message, token_usage
         except Exception as e:
             raise Exception(f"API request failed: {str(e)}")
     
     def get_completion_stream(self, request_params: Dict[str, Any]) -> Generator[str, None, None]:
-        # work on a copy to avoid mutating the original request dict
-        params = dict(request_params)
-        params["model"] = self.config.model
+        """
+        Send streaming chat completion request and return generator, including token usage
+        
+        Args:
+            request_params: Request parameters dictionary, including model, messages, etc.
+            
+        Yields:
+            Gradually return AI assistant reply content chunks, finally return complete message object and token usage
+        """
+        # Make a copy to avoid modifying the original request
+        params = request_params.copy()
+        params["model"] = self.model
         params["stream"] = True
         params["stream_options"] = {"include_usage": True}
-
+        
         try:
             stream = self.client.chat.completions.create(**params)
-
+            
             full_content = ""
             tool_calls = []
             current_tool_call = None
             token_usage = None
-
-            # Use an unbounded queue to avoid producer backpressure causing early cutoff
-            q: "queue.Queue[Any]" = queue.Queue()
-            _SENTINEL = object()
-            _err_holder = {"err": None}
-
-            def _producer():
-                try:
-                    for ch in stream:
-                        # With an unbounded queue, this will not block under normal conditions
-                        # Prevents premature termination when the consumer is briefly busy
-                        try:
-                            q.put(ch)
-                        except Exception:
-                            # If the consumer is gone or queue is unavailable, stop producing
-                            break
-                except Exception as prod_err:
-                    _err_holder["err"] = prod_err
-                finally:
-                    try:
-                        q.put(_SENTINEL)
-                    except Exception:
-                        pass
-
-            t = threading.Thread(target=_producer, daemon=True)
-            t.start()
-
-            while True:
-                try:
-                    chunk = q.get(timeout=0.05)
-                except queue.Empty:
-                    # heartbeat to allow UI to poll interrupts
-                    yield ""
-                    continue
-
-                if chunk is _SENTINEL:
-                    break
-
+            
+            for chunk in stream:
+                # Handle token usage information
                 if hasattr(chunk, 'usage') and chunk.usage:
                     token_usage = chunk.usage
-                    cost = getattr(token_usage, 'model_extra', {})
-                    if isinstance(cost, dict):
-                        self._total_cost += cost.get("cost", 0)
+                    cost = getattr(token_usage, 'model_extra', {})                                                                                  
+                    if isinstance(cost, dict):                                                                                                      
+                        self._total_cost += cost.get("cost", 0)   
                     continue
-
-                if (
-                    hasattr(chunk, 'choices') and
-                    len(chunk.choices) > 0 and
-                    hasattr(chunk.choices[0], 'delta') and
-                    hasattr(chunk.choices[0].delta, 'content') and
-                    chunk.choices[0].delta.content
-                ):
+                
+                if chunk.choices[0].delta.content:
                     content_chunk = chunk.choices[0].delta.content
                     full_content += content_chunk
                     yield content_chunk
-
-                if (
-                    hasattr(chunk, 'choices') and
-                    len(chunk.choices) > 0 and
-                    hasattr(chunk.choices[0], 'delta') and
-                    hasattr(chunk.choices[0].delta, 'tool_calls') and
-                    chunk.choices[0].delta.tool_calls
-                ):
+                
+                # Handle tool calls
+                if hasattr(chunk.choices[0].delta, 'tool_calls') and chunk.choices[0].delta.tool_calls:
                     for tool_call_delta in chunk.choices[0].delta.tool_calls:
                         if tool_call_delta.index is not None:
+                            # Ensure enough tool_calls slots
                             while len(tool_calls) <= tool_call_delta.index:
                                 tool_calls.append({
                                     'id': None,
                                     'type': 'function',
                                     'function': {'name': None, 'arguments': ''}
                                 })
-
+                            
                             current_tool_call = tool_calls[tool_call_delta.index]
-
+                            
                             if tool_call_delta.id:
                                 current_tool_call['id'] = tool_call_delta.id
-
+                            
                             if tool_call_delta.function:
                                 if tool_call_delta.function.name:
                                     current_tool_call['function']['name'] = tool_call_delta.function.name
                                 if tool_call_delta.function.arguments:
                                     current_tool_call['function']['arguments'] += tool_call_delta.function.arguments
-
-            if _err_holder["err"] is not None:
-                raise Exception(_err_holder["err"])
-
+            
+            
+            # Convert tool_calls to OpenAI standard format
             formatted_tool_calls = None
             if tool_calls and any(tc['id'] for tc in tool_calls):
                 formatted_tool_calls = []
@@ -181,7 +150,8 @@ class APIClient:
                                 type='function'
                             )
                         )
-
+            
+            # Return standard ChatCompletionMessage object
             message = ChatCompletionMessage(
                 content=full_content,
                 role="assistant",
@@ -193,10 +163,11 @@ class APIClient:
                 reasoning=None
             )
 
+            # Add usage information to the message for tracking
             if token_usage:
                 message.usage = token_usage
-
+            
             yield message
-
+            
         except Exception as e:
             raise Exception(f"Streaming API request failed: {str(e)}")

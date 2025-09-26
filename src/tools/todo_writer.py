@@ -1,7 +1,7 @@
 import json
 import os
 from typing import Any, Dict, List
-from .tool_interface import ToolInterface
+from tools.tool_interface import ToolInterface
 
 
 class TodoWriteManager(ToolInterface):

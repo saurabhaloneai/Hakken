@@ -2,7 +2,7 @@
 > [!IMPORTANT]
 > hakken is an ai agent which needs a lot of context to provide `good` intelligent assistance.
 > 
-> this is like a claude-code but `opensource` hehe and i have built this from scratch.
+> this is like a claude-code and i have built this from scratch.
  
 
 ![img](assets/images/interface.png)
@@ -29,45 +29,48 @@
 ## data flow 
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant UI as hakken ui
-    participant AG as conversation_agent
-    participant HI as history_manager
-    participant PM as prompt_manager
-    participant AC as api_client (openai)
-    participant TR as tool_registry/tools
-
-    UI->>AG: user input
-    AG->>HI: add user message
-    AG->>HI: auto compress if needed
-    AG->>TR: get tool schemas (deterministic)
-    AG->>AC: chat.completions.create(..., tool_choice=auto, stream=true)
-    AC-->>AG: content deltas (stream)
-    AG-->>UI: stream chunks
-    AC-->>AG: final assistant message (+ optional tool_calls)
-    AG->>HI: add assistant message
-    alt has tool_calls
-      loop each tool_call
-        opt approval required
-          AG->>UI: approval panel [yes/no/always]
-          UI-->>AG: decision (remember "always")
-        end
-        AG->>TR: run_tool(name, args)
-        TR-->>AG: tool result (may include file paths)
-        opt last tool in batch
-          AG->>PM: get reminder (todos+memory+env)
-        end
-        AG->>HI: add role=tool message (+ reminder on last)
-      end
-      AG->>AC: call llm again with updated messages
-    else no tool_calls
-      AG-->>UI: display status (context %, cost)
-      opt narrated action but no tools
-        AG->>HI: inject nudge (e.g., use read_file ...)
-        AG->>AC: call llm again
-      end
+graph TB
+    %% User Entry Points
+    User[👤 User] 
+    CLI[🖥️ CLI Entry Point]
+    
+    %% Main Components
+    Agent[🤖 Agent Core]
+    UI[🎨 HakkenCodeUI]
+    API[🌐 APIClient]
+    History[📚 HistoryManager]
+    Tools[🔧 ToolManager]
+    Prompts[📝 PromptManager]
+    
+    %% Tool Types
+    subgraph ToolTypes[🛠️ Available Tools]
+        FileOps[📁 File Operations<br/>FileReader, FileEditor]
+        Search[🔍 Search Tools<br/>GrepSearch, WebSearch]
+        System[⚙️ System Tools<br/>CommandRunner, GitTools]
+        Task[📋 Task Tools<br/>TodoWriter, TaskDelegator]
+        Memory[🧠 Memory Tools<br/>TaskMemory, ContextCropper]
     end
+    
+    %% Data Flow Connections
+    User --> CLI
+    CLI --> Agent
+    Agent --> UI
+    Agent --> API
+    Agent --> History
+    Agent --> Tools
+    Agent --> Prompts
+    
+    Tools --> ToolTypes
+    
+    %% Feedback loops
+    API -.-> Agent
+    Tools -.-> Agent
+    UI -.-> User
+    History -.-> Agent
+    
+    style Agent fill:#ff6b35,stroke:#fff,stroke-width:3px,color:#fff
+    style User fill:#00d4ff,stroke:#fff,stroke-width:2px,color:#fff
+    style ToolTypes fill:#00ff88,stroke:#fff,stroke-width:2px,color:#000
 ```
 
 > [!NOTE]

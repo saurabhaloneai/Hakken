@@ -1,7 +1,7 @@
 from typing import Any, Dict
 import uuid
 from datetime import datetime
-from .tool_interface import ToolInterface
+from tools.tool_interface import ToolInterface
 from memory.task_memory import TaskMemory, TaskMemoryManager
 
 

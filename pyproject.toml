@@ -40,14 +40,15 @@ where = ["src"]
 [tool.setuptools.package-dir]
 "" = "src"
 
+[project.scripts]
+hakken = "hakken_main:main"
+
+[project.entry-points."console_scripts"]
+hakken = "hakken_main:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",
     "pytest-asyncio>=0.24.0",
     "pytest-mock>=3.14.1",
 ]
-[project.scripts]
-hakken = "main:cli"
-
-[project.entry-points."console_scripts"]
-hakken = "main:cli"

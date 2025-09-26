@@ -8,5 +8,4 @@ hakken.egg-info
 .ruff_cache
 .pytest_cache  
 
-tutorials/react_agent
-tutorials/plan
+notebooks   

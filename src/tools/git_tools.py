@@ -1,6 +1,6 @@
 import subprocess
 from typing import Dict, Any
-from .tool_interface import ToolInterface, ToolResult
+from tools.tool_interface import ToolInterface, ToolResult
 
 
 class GitTools(ToolInterface):

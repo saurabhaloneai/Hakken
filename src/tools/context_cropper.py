@@ -1,6 +1,6 @@
 
 from typing import Any, Dict
-from .tool_interface import ToolInterface
+from tools.tool_interface import ToolInterface
 from history.conversation_history import CropDirection
 
 

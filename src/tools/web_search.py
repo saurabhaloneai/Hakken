@@ -1,7 +1,7 @@
 import os
 import re
 from typing import Dict, Any, Literal
-from .tool_interface import ToolInterface
+from tools.tool_interface import ToolInterface
 
 try:
     from tavily import TavilyClient
