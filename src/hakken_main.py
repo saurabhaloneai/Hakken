@@ -19,7 +19,7 @@ def main():
         async def run(self):
             try:
                 self.ui.display_welcome_header()
-                await self.agent.start_Agent()
+                await self.agent.start_agent()
                 
             except KeyboardInterrupt:
                 pass
