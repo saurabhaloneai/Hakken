@@ -7,6 +7,4 @@ hakken.egg-info
 .hakken
 .ruff_cache
 .pytest_cache  
-
-notebooks   
 blog

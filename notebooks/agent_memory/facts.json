@@ -1,0 +1,96 @@
+{
+  "facts": [
+    {
+      "fact": "Python is a programming language",
+      "category": "programming",
+      "confidence": 1.0,
+      "learned_at": "2025-09-25T21:27:11.393704",
+      "access_count": 2
+    },
+    {
+      "fact": "OpenAI created ChatGPT",
+      "category": "ai",
+      "confidence": 0.9,
+      "learned_at": "2025-09-25T21:27:11.394280",
+      "access_count": 3
+    },
+    {
+      "fact": "ReAct pattern combines reasoning and acting",
+      "category": "ai_patterns",
+      "confidence": 1.0,
+      "learned_at": "2025-09-25T21:27:11.394673",
+      "access_count": 2
+    },
+    {
+      "fact": "User frequently creates AI Agents Development tasks",
+      "category": "user_behavior",
+      "confidence": 0.6,
+      "learned_at": "2025-09-25T21:27:35.534659",
+      "access_count": 1
+    },
+    {
+      "fact": "User frequently creates AI Agents Development tasks",
+      "category": "user_behavior",
+      "confidence": 0.6,
+      "learned_at": "2025-09-25T21:27:35.535202",
+      "access_count": 1
+    },
+    {
+      "fact": "User frequently creates AI Agents Development tasks",
+      "category": "user_behavior",
+      "confidence": 0.6,
+      "learned_at": "2025-09-25T21:27:35.535595",
+      "access_count": 1
+    },
+    {
+      "fact": "User frequently creates AI Agents Development tasks",
+      "category": "user_behavior",
+      "confidence": 0.6,
+      "learned_at": "2025-09-25T21:27:35.536063",
+      "access_count": 1
+    },
+    {
+      "fact": "User frequently creates AI Agents Development tasks",
+      "category": "user_behavior",
+      "confidence": 0.6,
+      "learned_at": "2025-09-25T21:27:35.536434",
+      "access_count": 1
+    },
+    {
+      "fact": "User frequently creates AI Agents Development tasks",
+      "category": "user_behavior",
+      "confidence": 0.6,
+      "learned_at": "2025-09-25T21:27:35.536808",
+      "access_count": 1
+    },
+    {
+      "fact": "User prefers detailed explanations in responses for Python AI agents project",
+      "category": "user_preferences",
+      "confidence": 1,
+      "learned_at": "2025-09-25T21:27:35.537135",
+      "access_count": 1
+    },
+    {
+      "fact": "User searched for: latest developments in ReAct agent architectures 2025",
+      "category": "user_behavior",
+      "confidence": 0.8,
+      "learned_at": "2025-09-25T21:28:46.735951",
+      "access_count": 0
+    },
+    {
+      "fact": "User frequently creates AI Agents Development tasks",
+      "category": "user_behavior",
+      "confidence": 0.6,
+      "learned_at": "2025-09-25T21:29:20.181003",
+      "access_count": 0
+    },
+    {
+      "fact": "2025 ReAct agent developments: Hybrid tool-calling with explicit reasoning; multi-tier memory (short/long-term via vector DBs); Plan-and-Act for hierarchical planning (57%+ success on benchmarks); multi-agent orchestration addressing 14 failure modes; self-reflection for error recovery. Key for complex tasks like web navigation and code gen.",
+      "category": "AI Agents",
+      "confidence": 1,
+      "learned_at": "2025-09-25T21:29:20.181554",
+      "access_count": 0
+    }
+  ],
+  "last_updated": "2025-09-25T21:29:20.181559"
+}
