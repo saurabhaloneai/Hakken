@@ -67,9 +67,7 @@ class Agent:
             ui_interface=self._ui_manager,
             history_manager=self._history_manager,
             conversation_agent=self
-        )
-        
-        # Replace boolean flag with proper state management
+        ) 
         self._state = AgentState.IDLE
         self._state_lock = asyncio.Lock()
         self._recursion_depth = 0
