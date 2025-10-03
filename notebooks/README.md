@@ -1,4 +1,4 @@
-# this is was basically my intial experiments to build the hakken 
+# this is basically my intial experiments to build the hakken coding agent
 
 - for this i ref the openai api [docs](https://platform.openai.com/docs/guides/tools) on tools 
 - openruonter [docs](https://openrouter.ai/docs/features/tool-calling) on tools 
