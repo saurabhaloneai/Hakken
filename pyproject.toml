@@ -1,54 +1,25 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "hakken"
 version = "0.1.0"
-description = "an agent that needs a lot of context"
+description = "ai agent"
 readme = "README.md"
-requires-python = ">=3.8"
-license = {text = "MIT"}
-authors = [
-    {name = "Saurabh", email = "saurabhalone85@gmail.com"}
-]
-keywords = ["ai", "agent", "conversation", "cli"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-]
+requires-python = ">=3.11"
 dependencies = [
-    "python-dotenv>=0.9.9",
-    "openai>=1.106.0",
-    "rich>=14.1.0",
-    "tavily-python>=0.3.0",
-    "ruff>=0.12.12",
-    "vulture>=2.14",
+    "dotenv>=0.9.9",
+    "jupyter>=1.1.1",
+    "openai>=2.5.0",
+    "ruff>=0.14.1",
+    "tavily-python>=0.7.12",
+    "textual>=6.3.0",
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-dir]
-"" = "src"
+where = ["hakken-agent/src"]
+include = ["python*"]
 
 [project.scripts]
-hakken = "hakken_main:main"
-
-[project.entry-points."console_scripts"]
-hakken = "hakken_main:main"
-
-[dependency-groups]
-dev = [
-    "pytest>=8.3.5",
-    "pytest-asyncio>=0.24.0",
-    "pytest-mock>=3.14.1",
-]
+hakken = "python.core.agent:main"

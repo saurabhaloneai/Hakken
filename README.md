@@ -1,131 +1,107 @@
-# hakken | 発見
-> [!IMPORTANT]
-> hakken is an ai agent which needs a lot of context to provide `good` intelligent assistance.
-> 
-> this is like a claude-code and i have built this from scratch.
- 
+# hakken 
 
-![img](assets/images/interface.png)
+An interactive CLI AI agent(llm in feedback-loop) that helps you with tasks through natural conversation.
 
-## agent capabilities
-
-> `chat` — conversation with automatic message compression and context awareness
+>[!IMPORTANT]
 >
-> `planning` — mandatory todo creation for complex tasks (4+ steps) with persistent todo.md tracking
-> 
-> `streaming` — real-time response streaming with ESC-key interrupts for mid-conversation redirection
->
-> `tools` — comprehensive toolkit: terminal commands, file operations, project search, git workflows, web search, task memory, and specialized sub-agent delegation
->
-> `context` — smart context cropping with user approval, intelligent prompt management, and environment-aware reminders
->
-> `memory` — persistent task memory across sessions with similarity search and context recall
->
-> `tokens` — token budgeting with context window optimization and output caps
->
-> `status` — real-time cost tracking, context usage monitoring, and session statistics
+> I build this project understand about agents work and how to build effective agents.
 
+![img](./assets/hakken.png)
 
-## data flow 
+## features
 
-```mermaid
-sequenceDiagram
-    participant User as 👤 User
-    participant Agent as 🤖 Agent
-    participant API as 🌐 API Client
-    participant UI as 🎨 UI Manager
-    participant Tools as 🔧 Tool Manager
-    participant History as 📚 History Manager
-    
-    User->>Agent: Input message
-    Agent->>History: Add user message
-    Agent->>History: Get conversation history
-    Agent->>Tools: Get tool descriptions
-    Agent->>API: Send request with tools
-    
-    API-->>Agent: Stream response with tool calls
-    Agent->>UI: Display streaming content
-    
-    loop For each tool call
-        Agent->>Tools: Execute tool(name, args)
-        Tools->>Tools: Find & run specific tool
-        Tools-->>Agent: Return tool result
-        Agent->>UI: Show tool execution status
-        Agent->>History: Add tool response
-    end
-    
-    Agent->>API: Continue conversation
-    API-->>Agent: Final response
-    Agent->>UI: Display final message
-    Agent->>History: Save complete interaction
-```
-
-> [!NOTE]
->  i have tested this agent with anthropic, xai and zai models. it works great with sonnet-4 and grok-4. it used to work great with z.ai modlels idk what happen either some issue with openrouter apis or idk i am not getting reponse as i used to get. 
-> 
-
-## installation
-
-### Option 1: Global Install (Use from anywhere)
-Install globally with uv:
-
-```bash
-git clone https://github.com/saurabhaloneai/hakken.git
-cd hakken
-uv tool install -e .
-```
-
-### Option 2: Local Development
-Install dependencies only (run from project directory):
-
-```bash
-git clone https://github.com/saurabhaloneai/hakken.git
-cd hakken
-uv sync
-```
+- **Tool Integration** - File system operations, web search, command execution
+- **Permission System** - Tool usage requires explicit approval
+- **Markdown Support** - Rich text rendering with syntax highlighting
+- **Human in the loop** - Agent will ask for approval to use tools and you ask stop agent if you want to stop the agent and give feedback to the agent.
+- [ ] Memory 
+- [ ] Long Context Management
+- [ ] Evaluation 
 
 ## setup
 
-1. **Copy the environment template:**
-   ```bash
-   cp .env.example .env
-   ```
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/hakken.git
+cd hakken
+```
 
-2. **Configure your API settings** by editing `.env`:
+2. Install Python dependencies:
+```bash
+uv sync
+# or
+pip install -e .
+```
 
-   **Using OpenRouter (Recommended - Free models available)**
-   ```bash
-   # Get a free API key from https://openrouter.ai/
-   OPENROUTER_API_KEY=your-openrouter-api-key-here
-   OPENAI_BASE_URL=https://openrouter.ai/api/v1
-   OPENAI_MODEL=z-ai/glm-4.5-air:free
-   ```
+3. Install Node dependencies:
+```bash
+cd hakken-agent
+npm install
+```
+
+4. Create `.env` file with your OpenAI API key:
+```bash
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
+```
+
+5. Build the project:
+```bash
+npm run build
+```
 
 ## usage
 
-### If you installed with Option 1 (Global Install):
-Run hakken from anywhere:
+Run the agent
 
 ```bash
 hakken
 ```
 
-**Note:** You'll need to copy the `.env` file to your project directory or set environment variables globally.
+### Keyboard Shortcuts
 
-### if you installed with Option 2 (Local Development):
-run hakken from the project directory:
+- `ESC` - Cancel pending tool approval
+- `Ctrl+S` - Save conversation history
+- `Ctrl+C` - Exit
 
-```bash
-uv run hakken
+## Project Structure
+
+```
+hakken/
+├── hakken-agent/          # CLI Application
+│   ├── src/
+│   │   ├── components/    # React UI components
+│   │   │   ├── types/     # TypeScript interfaces
+│   │   │   └── utils/     # Helper functions
+│   │   ├── hooks/         # Custom React hooks
+│   │   ├── python/        # Python backend
+│   │   │   ├── core/      # Agent and client logic
+│   │   │   ├── prompts/   # AI prompts
+│   │   │   └── tools/     # Tool definitions
+│   │   ├── bridge.py      # Python-Node.js bridge
+│   │   ├── ui.tsx         # Main UI entry point
+│   │   ├── index.js       # CLI entry point
+│   │   └── setup.js       # Setup configuration
+│   ├── build.sh           # Build script
+│   ├── package.json       # Node.js dependencies
+│   └── tsconfig.json      # TypeScript config
+├── .github/               # GitHub templates
+│   ├── ISSUE_TEMPLATE/    # Issue templates
+│   └── pull_request_template.md
+├── pyproject.toml         # Python package metadata
+├── uv.lock                # Python dependency lock
+├── README.md              # This file
+├── LICENSE                # MIT License
+├── CONTRIBUTING.md        # Contribution guidelines
+└── CHANGELOG.md           # Version history
 ```
 
-the agent will start an interactive conversation where you can ask questions and get contextual assistance.
+The project uses a hybrid architecture:
+- **Root level**: Python package metadata and configuration
+- **hakken-agent/**: Complete CLI application with React UI and Python backend
 
-**Important:** Make sure your `.env` file is properly configured before running hakken!
+## license
 
+MIT License - see LICENSE file for details
 
-
-## todo 
-
-- [in process] add tutorials 
-- [ ] improve the ui 
+![img](./assets/hakken-bye.png)

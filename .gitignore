@@ -1,10 +1,13 @@
 .python-version
 __pycache__
+*.pyc
 .env
 .DS_Store
-hakken.egg-info
+*.egg-info
 .venv
 .hakken
 .ruff_cache
 .pytest_cache  
 blog
+dist
+node_modules
