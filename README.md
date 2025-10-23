@@ -1,10 +1,10 @@
 # hakken 
 
-An interactive CLI AI agent(llm in feedback-loop) that helps you with tasks through natural conversation.
-
 >[!IMPORTANT]
 >
-> I build this project understand about agents work and how to build effective agents.
+> An interactive CLI AI agent(llm in feedback-loop) that suppose to help you with coding tasks.
+>
+> I have built this project to understand about agents work and how to build effective agents.
 
 ![img](./assets/hakken.png)
 
