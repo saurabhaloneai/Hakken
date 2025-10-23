@@ -3,7 +3,7 @@
 >[!IMPORTANT]
 >
 > An interactive CLI AI agent(llm in feedback-loop) that suppose to help you with coding tasks.
-> I have built this project to understand about agents work and how to build effective agents.
+> I have built this project to understand about how agents work and how to build effective agents.
 > 
 > Claude helped me here and there but mostly around UI design.
 
