@@ -29,8 +29,6 @@ cd hakken
 2. Install Python dependencies:
 ```bash
 uv sync
-# or
-pip install -e .
 ```
 
 3. Install Node dependencies:
@@ -44,61 +42,11 @@ npm install
 cp .env.example .env
 # Edit .env and add your OPENAI_API_KEY
 ```
-
-5. Build the project:
-```bash
-npm run build
-```
-
-## usage
-
-Run the agent
-
+5. Run the agent:
 ```bash
 hakken
 ```
 
-### Keyboard Shortcuts
-
-- `ESC` - Cancel pending tool approval
-- `Ctrl+S` - Save conversation history
-- `Ctrl+C` - Exit
-
-## Project Structure
-
-```
-hakken/
-├── hakken-agent/          # CLI Application
-│   ├── src/
-│   │   ├── components/    # React UI components
-│   │   │   ├── types/     # TypeScript interfaces
-│   │   │   └── utils/     # Helper functions
-│   │   ├── hooks/         # Custom React hooks
-│   │   ├── python/        # Python backend
-│   │   │   ├── core/      # Agent and client logic
-│   │   │   ├── prompts/   # AI prompts
-│   │   │   └── tools/     # Tool definitions
-│   │   ├── bridge.py      # Python-Node.js bridge
-│   │   ├── ui.tsx         # Main UI entry point
-│   │   ├── index.js       # CLI entry point
-│   │   └── setup.js       # Setup configuration
-│   ├── build.sh           # Build script
-│   ├── package.json       # Node.js dependencies
-│   └── tsconfig.json      # TypeScript config
-├── .github/               # GitHub templates
-│   ├── ISSUE_TEMPLATE/    # Issue templates
-│   └── pull_request_template.md
-├── pyproject.toml         # Python package metadata
-├── uv.lock                # Python dependency lock
-├── README.md              # This file
-├── LICENSE                # MIT License
-├── CONTRIBUTING.md        # Contribution guidelines
-└── CHANGELOG.md           # Version history
-```
-
-The project uses a hybrid architecture:
-- **Root level**: Python package metadata and configuration
-- **hakken-agent/**: Complete CLI application with React UI and Python backend
 
 ## license
 

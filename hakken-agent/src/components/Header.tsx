@@ -41,7 +41,7 @@ export const Header: React.FC<HeaderProps> = memo(({ workingDirectory, terminalW
           </>
         )}
       </Box>
-      <Text color="gray" dimColor>{"─".repeat(Math.min(terminalWidth, 80))}</Text>
+      <Text> </Text>
     </Box>
   );
 });

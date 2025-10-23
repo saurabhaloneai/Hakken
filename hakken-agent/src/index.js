@@ -31,14 +31,16 @@ if (!fs.existsSync(CONFIG_PATH)) {
   process.env.OPENAI_MODEL = config.model;
   process.env.TAVILY_API_KEY = config.tavilyApiKey || '';
   
-  // Import and start the UI
-  import('./ui.js').then(module => {
-    // Your UI module should export a default function
-    if (module.default) {
-      module.default();
-    }
-  }).catch(err => {
-    console.error('Error starting Hakken:', err);
-    process.exit(1);
+  // Use tsx to run TypeScript UI directly
+  const uiPath = path.join(__dirname, 'ui.tsx');
+  const tsxPath = path.join(__dirname, '..', 'node_modules', '.bin', 'tsx');
+  
+  const ui = spawn(tsxPath, [uiPath], { 
+    stdio: 'inherit',
+    env: process.env
+  });
+  
+  ui.on('exit', (code) => {
+    process.exit(code || 0);
   });
 }

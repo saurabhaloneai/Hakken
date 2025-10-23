@@ -4,15 +4,15 @@
     "description": "Interactive CLI AI agent",
     "type": "module",
     "bin": {
-        "hakken": "./dist/src/index.js"
+        "hakken": "./src/index.js"
     },
     "files": [
-        "dist",
-        "src"
+        "src",
+        "node_modules"
     ],
     "scripts": {
-        "build": "chmod +x build.sh && ./build.sh",
-        "prepare": "npm run build"
+        "start": "node src/index.js",
+        "dev": "tsx src/ui.tsx"
     },
     "dependencies": {
         "dotenv": "^16.0.0",
@@ -23,6 +23,7 @@
     },
     "devDependencies": {
         "@types/node": "^20.0.0",
+        "tsx": "^4.20.6",
         "typescript": "^5.0.0"
     }
 }

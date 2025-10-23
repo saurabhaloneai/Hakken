@@ -1,5 +1,4 @@
-# Build outputs
-dist/
+# Build outputs (not needed with tsx)
 *.js.map
 
 # Dependencies
