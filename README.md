@@ -1,4 +1,4 @@
-# hakken 
+# hakken | 発見
 
 >[!IMPORTANT]
 >
