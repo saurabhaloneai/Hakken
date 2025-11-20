@@ -130,7 +130,7 @@ export const usePythonBridge = () => {
   };
 
   useEffect(() => {
-    pythonProcess.current = spawn(pythonCmd, [path.join(__dirname, '..', 'bridge.py')], {
+    pythonProcess.current = spawn(pythonCmd, [path.join(__dirname, '..', '..', 'src', 'bridge.py')], {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: process.cwd()
     });

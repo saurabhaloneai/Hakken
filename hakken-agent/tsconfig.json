@@ -13,8 +13,9 @@
       "allowSyntheticDefaultImports": true,
       "forceConsistentCasingInFileNames": true,
       "outDir": "./dist",
-      "rootDir": "./"
+      "rootDir": "./",
+      "types": ["node"]
     },
-    "include": ["*.tsx", "*.ts", "src/**/*"],
+    "include": ["*.tsx", "*.ts", "src/**/*", "ui/**/*"],
     "exclude": ["node_modules", "dist"]
   }

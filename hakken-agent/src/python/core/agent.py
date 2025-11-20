@@ -1,13 +1,18 @@
 import json
 import asyncio
+from typing import Optional
+from .message import system_message, user_message
+from .conversation import ConversationHistory
 
 class AgentLoop:
-    def __init__(self, client, tools, tool_mapping, model_name, system_prompt=None, stop_event=None):
+    def __init__(self, client, tools, tool_mapping, model_name, system_prompt=None, stop_event=None, use_structured_history=False):
         self.client = client
         self.tools = tools
         self.tool_mapping = tool_mapping
         self.model_name = model_name
-        self.messages = []
+        self.use_structured_history = use_structured_history
+        self.conversation = ConversationHistory()
+        self.messages = [] 
         self.max_iterations = 50
         self.system_prompt = system_prompt
         self.on_tool_request = None
@@ -16,22 +21,21 @@ class AgentLoop:
         self.stop_event = stop_event
         self._initialize_environment_info()
 
-    def _initialize_environment_info(self):
-        env_info = self.tool_mapping["get_environment_info"]()
-        listing = []
-        if "list_directory" in self.tool_mapping:
-            ls = self.tool_mapping["list_directory"](".")
-            files = ls.get("files", [])
-            listing = [f.get("path", f.get("name", "")) for f in files][:20]
-        files_line = "\nProject files: " + (", ".join(listing) if listing else "(none)")
-        env_context = f"## Environment Information\n{env_info}{files_line}\n\n"
-        self.add_system_message(env_context)
+    def add_system_message(self, content: str, metadata: Optional[dict] = None):
+        if self.use_structured_history:
+            self.conversation.add_system(content, metadata)
+            self.messages = self.conversation.get_messages_for_api()
+        else:
+            msg = system_message(content)
+            self.messages.append(msg.model_dump(exclude={'metadata', 'timestamp'}))
 
-    def add_system_message(self, content: str):
-        self.messages.append({"role": "system", "content": content})
-
-    def add_user_message(self, content: str):
-        self.messages.append({"role": "user", "content": content})
+    def add_user_message(self, content: str, metadata: Optional[dict] = None):
+        if self.use_structured_history:
+            self.conversation.add_user(content, metadata)
+            self.messages = self.conversation.get_messages_for_api()
+        else:
+            msg = user_message(content)
+            self.messages.append(msg.model_dump(exclude={'metadata', 'timestamp'}))
 
     def _execute_tool_call(self, tool_call):
         tool_name = tool_call['function']['name']
