@@ -1,27 +1,35 @@
+[project]
+name = "hakken"
+version = "0.1.0"
+description = "An autonomous AI coding agent for the terminal."
+authors = [{name = "saurabhaloneai", email = "youremail@example.com"}]
+license = {text = "MIT"}
+readme = "README.md"
+keywords = ["cli", "tools", "ai", "agent", "coding"]
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/saurabhaloneai/hakken"
+Repository = "https://github.com/saurabhaloneai/hakken"
+
+[project.scripts]
+hakken = "hakken.cli:main"
+
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[project]
-name = "hakken"
-version = "0.1.0"
-description = "ai agent"
-readme = "README.md"
-requires-python = ">=3.11"
-dependencies = [
-    "chromadb>=1.3.4",
-    "dotenv>=0.9.9",
-    "jupyter>=1.1.1",
-    "openai>=2.5.0",
-    "pydantic>=2.12.3",
-    "ruff>=0.14.1",
-    "tavily-python>=0.7.12",
-    "textual>=6.3.0",
-]
-
 [tool.setuptools.packages.find]
-where = ["hakken-agent/src"]
-include = ["python*"]
+where = ["src"]
 
-[project.scripts]
-hakken = "python.core.agent:main"
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"

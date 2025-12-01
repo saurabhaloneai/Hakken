@@ -1,0 +1,36 @@
+{
+  "name": "hakken-terminal-ui",
+  "version": "1.0.0",
+  "description": "Terminal UI for the Hakken application",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "ink": "^4.0.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^5.0.0",
+    "ink-big-text": "^1.2.0",
+    "ink-gradient": "^2.0.0",
+    "react": "^18.0.0",
+    "chalk": "^5.0.0",
+    "clipboardy": "^3.0.0",
+    "date-fns": "^2.29.0",
+    "figures": "^5.0.0",
+    "node-fetch": "^3.3.0",
+    "ws": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/node": "^18.0.0",
+    "@types/ws": "^8.5.4",
+    "@types/ink-big-text": "^1.2.0",
+    "@types/ink-gradient": "^2.0.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.1"
+  }
+}
