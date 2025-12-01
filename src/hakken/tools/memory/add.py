@@ -1,6 +1,18 @@
 from hakken.tools.base import BaseTool
 
 
+TOOL_DESCRIPTION = """Store repository-specific knowledge that persists across sessions.
+
+Use this tool to save important information about THIS repository:
+- Architecture decisions and design patterns used
+- Important configuration details or conventions
+- Key dependencies and their purposes
+- Non-obvious implementation details
+- Project-specific terminology or concepts
+
+This is separate from task management (use todo_write for tasks). Use this for knowledge that should be remembered about the codebase itself."""
+
+
 class AddMemoryTool(BaseTool):
     def __init__(self, memory_file=".hakken_memories.json"):
         super().__init__()
@@ -27,16 +39,7 @@ class AddMemoryTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Store repository-specific knowledge that persists across sessions.
-
-Use this tool to save important information about THIS repository:
-- Architecture decisions and design patterns used
-- Important configuration details or conventions
-- Key dependencies and their purposes
-- Non-obvious implementation details
-- Project-specific terminology or concepts
-
-This is separate from task management (use todo_write for tasks). Use this for knowledge that should be remembered about the codebase itself.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

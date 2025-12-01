@@ -3,6 +3,21 @@ import os
 from hakken.tools.base import BaseTool
 
 
+TOOL_DESCRIPTION = """View git commit history.
+
+Shows recent commits with:
+- Commit hash (short form)
+- Author name
+- Relative time (e.g., "2 hours ago")
+- Commit message
+
+Use this to:
+- See recent changes to the codebase
+- Find who made specific changes
+- Review commit history before pushing
+- Track changes to specific files"""
+
+
 class GitLogTool(BaseTool):
     def __init__(self):
         super().__init__()
@@ -50,19 +65,7 @@ class GitLogTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """View git commit history.
-
-Shows recent commits with:
-- Commit hash (short form)
-- Author name
-- Relative time (e.g., "2 hours ago")
-- Commit message
-
-Use this to:
-- See recent changes to the codebase
-- Find who made specific changes
-- Review commit history before pushing
-- Track changes to specific files""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

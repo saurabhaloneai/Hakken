@@ -3,6 +3,23 @@ from hakken.tools.base import BaseTool
 from hakken.utils.files import write_file_content, replace_file_lines, validate_absolute_path
 
 
+TOOL_DESCRIPTION = """Creates a new file or modifies an existing file's content.
+
+This tool supports three modes:
+1. **Create new file**: Provide file_path and content (without line numbers)
+2. **Full file overwrite**: Provide file_path and content (existing file, no line numbers)  
+3. **Line-based edit**: Provide file_path, content, start_line, and optionally end_line
+
+Line-based editing:
+- Lines are 1-indexed (first line is 1, not 0)
+- Replaces lines [start_line, end_line] inclusive with new content
+- If only start_line provided, replaces from start_line to end of file
+- Cannot specify line numbers when creating a new file
+
+Always ensure you have read the file first before making line-based edits to avoid mistakes.
+The tool will create parent directories automatically if they don't exist."""
+
+
 class EditFileTool(BaseTool):
     def __init__(self):
         super().__init__()
@@ -54,21 +71,7 @@ class EditFileTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Creates a new file or modifies an existing file's content.
-
-This tool supports three modes:
-1. **Create new file**: Provide file_path and content (without line numbers)
-2. **Full file overwrite**: Provide file_path and content (existing file, no line numbers)  
-3. **Line-based edit**: Provide file_path, content, start_line, and optionally end_line
-
-Line-based editing:
-- Lines are 1-indexed (first line is 1, not 0)
-- Replaces lines [start_line, end_line] inclusive with new content
-- If only start_line provided, replaces from start_line to end of file
-- Cannot specify line numbers when creating a new file
-
-Always ensure you have read the file first before making line-based edits to avoid mistakes.
-The tool will create parent directories automatically if they don't exist.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

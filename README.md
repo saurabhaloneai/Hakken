@@ -3,12 +3,17 @@
 >[!IMPORTANT]
 >
 > An interactive CLI AI agent(llm in feedback-loop) that suppose to help you with coding tasks.
-> I have built this project to understand about how agents work and how to build effective agents.
+> I have built this project to understand about how agents work and how to built agents effectively.
 > 
 > Claude helped me here and there but mostly around UI design.
 
 
 ![img](./assets/hakken.png)
+
+>[!NOTE]
+> 
+>
+
 
 ## core features
 
@@ -19,7 +24,7 @@
 - **Git Integration** - Built-in git operations for status, commit, push, diff, and log
 - **Memory System** - Repository-specific knowledge retention and retrieval
 - **Task Management** - TODO tracking and autonomous task execution via subagents
-- **Context Compression** - Efficient conversation history management
+- **Context Engineering** - Advanced context window management and optimization
 
 ## project structure
 
@@ -163,3 +168,42 @@ Autonomous subagents can be spawned for:
 - Complex multi-step tasks
 - Parallel execution of independent operations
 - Isolated contexts for specific objectives
+
+
+## context engineering
+
+Hakken implements several techniques to manage and optimize the LLM context window:
+
+### auto-compression with LLM summarization
+- Automatically compresses conversation history when context usage exceeds threshold (configurable via `COMPRESS_THRESHOLD`)
+- Uses LLM to generate intelligent summaries preserving key decisions, unresolved issues, and important context
+- Retains system messages and recent interactions while summarizing older sessions
+
+### token usage tracking & monitoring
+- Real-time tracking of input/output tokens per request
+- Context window usage displayed as percentage
+- Configurable max token limit via `MODEL_MAX_TOKENS`
+
+### tool result management
+- Automatically clears old tool results after every 10 tool calls (keeps last 5)
+- Replaces verbose tool outputs with placeholder to save context space
+- Manual cropping support (top/bottom direction) for fine-grained control
+
+### chat session isolation
+- Subagent tasks run in isolated chat sessions
+- Prevents context pollution between main conversation and sub-tasks
+- Clean session handoff with response extraction
+
+### cache control tagging
+- Adds Anthropic-style `cache_control` markers to messages
+- Enables prompt caching for compatible providers (Anthropic models via OpenRouter)
+
+### todo list for task tracking
+- Structured todo list to track multi-step tasks
+- Keeps agent focused on current objectives without losing context
+- Provides visibility into progress and remaining work
+
+### message sanitization
+- Trims and validates assistant content before storing
+- Handles empty responses with fallback content
+- Proper tool-call detection and structured message building

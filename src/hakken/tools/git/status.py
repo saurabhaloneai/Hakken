@@ -1,6 +1,18 @@
 from hakken.tools.base import BaseTool
 
 
+TOOL_DESCRIPTION = """Check the status of a git repository.
+
+Shows:
+- Current branch
+- Modified files
+- Untracked files
+- Staged changes
+- Files ready to commit
+
+Use this before making commits to see what changes are present."""
+
+
 class GitStatusTool(BaseTool):
     def __init__(self):
         super().__init__()
@@ -20,16 +32,7 @@ class GitStatusTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Check the status of a git repository.
-
-Shows:
-- Current branch
-- Modified files
-- Untracked files
-- Staged changes
-- Files ready to commit
-
-Use this before making commits to see what changes are present.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

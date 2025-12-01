@@ -1,6 +1,21 @@
 from hakken.tools.base import BaseTool
 
 
+TOOL_DESCRIPTION = """View git diffs to see what changed.
+
+Shows line-by-line changes:
+- Lines added (+ prefix)
+- Lines removed (- prefix)
+- Context lines (no prefix)
+
+Options:
+- View all unstaged changes (default)
+- View staged changes (staged=true)
+- View changes for specific file (file_path)
+
+Use this before committing to review your changes."""
+
+
 class GitDiffTool(BaseTool):
     @staticmethod
     def get_tool_name():
@@ -30,19 +45,7 @@ class GitDiffTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """View git diffs to see what changed.
-
-Shows line-by-line changes:
-- Lines added (+ prefix)
-- Lines removed (- prefix)
-- Context lines (no prefix)
-
-Options:
-- View all unstaged changes (default)
-- View staged changes (staged=true)
-- View changes for specific file (file_path)
-
-Use this before committing to review your changes.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

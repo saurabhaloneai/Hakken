@@ -1,6 +1,26 @@
 import os
 from hakken.tools.base import BaseTool
 
+
+TOOL_DESCRIPTION = """Performs find-and-replace operations on file content using exact string matching.
+
+This is ideal for:
+- Renaming variables, functions, or classes across a file
+- Updating configuration values
+- Replacing repeated text patterns
+
+By default, replaces ALL occurrences. Use the 'count' parameter to limit replacements.
+For example, count=1 replaces only the first occurrence.
+
+Important:
+- Uses exact string matching (not regex)
+- Search is case-sensitive
+- File must exist (cannot create new files)
+- Reports an error if the search_string is not found in the file
+
+Returns a success message indicating how many replacements were made."""
+
+
 class SearchReplaceTool(BaseTool):
     def __init__(self):
         super().__init__()
@@ -42,23 +62,7 @@ class SearchReplaceTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Performs find-and-replace operations on file content using exact string matching.
-
-This is ideal for:
-- Renaming variables, functions, or classes across a file
-- Updating configuration values
-- Replacing repeated text patterns
-
-By default, replaces ALL occurrences. Use the 'count' parameter to limit replacements.
-For example, count=1 replaces only the first occurrence.
-
-Important:
-- Uses exact string matching (not regex)
-- Search is case-sensitive
-- File must exist (cannot create new files)
-- Reports an error if the search_string is not found in the file
-
-Returns a success message indicating how many replacements were made.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

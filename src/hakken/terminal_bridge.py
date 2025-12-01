@@ -214,6 +214,9 @@ class Bridge:
             await self.process(json.loads(line))
     
     async def run(self):
+        work_dir = os.environ.get("HAKKEN_WORK_DIR")
+        if work_dir:
+            os.chdir(work_dir)
         self.emit("environment_info", {"working_directory": os.getcwd()})
         self.create_agent()
         self.agent.add_message({

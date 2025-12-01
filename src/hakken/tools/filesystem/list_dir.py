@@ -1,6 +1,24 @@
 import os
 from hakken.tools.base import BaseTool
 
+
+TOOL_DESCRIPTION = """Lists all files and subdirectories within a specified directory.
+
+Use this to:
+- Explore project structure
+- Find files before reading or editing them
+- Understand directory organization
+- Verify files exist before operating on them
+
+Returns:
+- Name of each item (file or directory)
+- Type indicator ([FILE] or [DIR])
+- Total count of items
+
+Results are sorted alphabetically. For very large directories (>100 items), 
+output is truncated with a count of remaining items."""
+
+
 class ListDirTool(BaseTool):
     def __init__(self):
         super().__init__()
@@ -46,21 +64,7 @@ class ListDirTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Lists all files and subdirectories within a specified directory.
-
-Use this to:
-- Explore project structure
-- Find files before reading or editing them
-- Understand directory organization
-- Verify files exist before operating on them
-
-Returns:
-- Name of each item (file or directory)
-- Type indicator ([FILE] or [DIR])
-- Total count of items
-
-Results are sorted alphabetically. For very large directories (>100 items), 
-output is truncated with a count of remaining items.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

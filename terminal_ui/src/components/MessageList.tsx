@@ -8,6 +8,7 @@ import { formatToolResult, parseToolMessage, FormattedResult } from './utils/for
 
 interface MessageListProps {
   messages: Message[]
+  width?: number
 }
 
 const getUserMeta = (msg: Message): string | undefined => {
@@ -33,16 +34,17 @@ const MESSAGE_PRESETS: Record<Message['type'], MessagePreset> = {
 }
 
 // Render tool message with clean formatting
-const ToolMessage: React.FC<{ content: string }> = ({ content }) => {
+const ToolMessage: React.FC<{ content: string; width?: number }> = ({ content, width }) => {
   const parsed = parseToolMessage(content)
+  const textWidth = width ? width - 4 : undefined
   
   if (!parsed) {
     // Fallback for non-standard tool messages (like preparing messages)
     return (
-      <Box>
+      <Box width={textWidth}>
         <Text color="blueBright">⌘ Tool</Text>
         <Text color="blueBright"> ❯ </Text>
-        <Text>{content}</Text>
+        <Text wrap="wrap">{content}</Text>
       </Box>
     )
   }
@@ -53,18 +55,18 @@ const ToolMessage: React.FC<{ content: string }> = ({ content }) => {
   const statusColor = isOk ? 'green' : 'red'
   
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width={textWidth}>
       <Box>
         <Text color="blueBright">⌘ </Text>
         <Text bold color="blueBright">{formatted.label}</Text>
         <Text color="blueBright"> ❯ </Text>
         <Text color={statusColor}>{statusIcon} </Text>
-        <Text>{formatted.summary}</Text>
+        <Text wrap="wrap">{formatted.summary}</Text>
       </Box>
       {formatted.details && formatted.details.length > 0 && (
         <Box flexDirection="column" marginLeft={4}>
           {formatted.details.map((line, i) => (
-            <Text key={i} dimColor>{line}</Text>
+            <Text key={i} dimColor wrap="wrap">{line}</Text>
           ))}
         </Box>
       )}
@@ -72,7 +74,7 @@ const ToolMessage: React.FC<{ content: string }> = ({ content }) => {
   )
 }
 
-export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
+export const MessageList: React.FC<MessageListProps> = ({ messages, width }) => {
   // Filter out system messages - they'll be shown in the status bar instead
   const visibleMessages = messages.filter(msg => msg.type !== 'system')
   
@@ -81,7 +83,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
       {visibleMessages.map((msg, idx) => (
         <Box key={idx} marginBottom={1}>
           {msg.type === 'tool' ? (
-            <ToolMessage content={msg.content} />
+            <ToolMessage content={msg.content} width={width} />
           ) : (
             <MessageBubble
               label={MESSAGE_PRESETS[msg.type].label}
@@ -91,6 +93,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
               variant={MESSAGE_PRESETS[msg.type].variant}
               icon={MESSAGE_PRESETS[msg.type].icon}
               markdown={msg.type === 'agent'}
+              width={width}
             />
           )}
         </Box>

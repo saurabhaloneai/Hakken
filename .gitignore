@@ -3,7 +3,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
+.github/copilot-instructions.md
 # C extensions
 *.so
 

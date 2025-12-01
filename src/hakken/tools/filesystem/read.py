@@ -2,6 +2,19 @@ from hakken.tools.base import BaseTool
 from hakken.utils.files import read_file_lines
 
 
+TOOL_DESCRIPTION = """Reads the content of a text file from the filesystem. 
+
+Use this to examine source code, configuration files, logs, or any text-based content. 
+You can read the entire file or specify a line range (1-indexed) to focus on specific sections.
+
+When to use line ranges:
+- Reading large files: Start with a small range to understand structure
+- Debugging: Focus on specific functions or sections
+- Performance: Avoid loading thousands of lines when you only need a snippet
+
+The response includes the file path, line range, total lines, and the actual content."""
+
+
 class ReadFileTool(BaseTool):
     def __init__(self):
         super().__init__()
@@ -30,17 +43,7 @@ Lines: {start_line}-{actual_end} (Total: {total})
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Reads the content of a text file from the filesystem. 
-
-Use this to examine source code, configuration files, logs, or any text-based content. 
-You can read the entire file or specify a line range (1-indexed) to focus on specific sections.
-
-When to use line ranges:
-- Reading large files: Start with a small range to understand structure
-- Debugging: Focus on specific functions or sections
-- Performance: Avoid loading thousands of lines when you only need a snippet
-
-The response includes the file path, line range, total lines, and the actual content.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

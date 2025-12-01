@@ -170,10 +170,34 @@ const fmtGitPush = (result: string): FormattedResult => {
 }
 
 const fmtTodoWrite = (result: string, args?: Record<string, unknown>): FormattedResult => {
-  const todos = (args?.todos || []) as Array<{ status?: string }>
-  const count = todos.length
-  const done = todos.filter(t => t.status === 'completed').length
-  return { icon: ICON.todo, label: 'todo', summary: `${done}/${count} done` }
+  const action = String(args?.action || 'list')
+  
+  if (action === 'add') {
+    const taskMatch = result.match(/Task added.*?: (.+)/)
+    return { icon: ICON.todo, label: 'todo', summary: `Added: ${cut(taskMatch?.[1] || '', 40)}` }
+  }
+  
+  if (action === 'complete') {
+    const taskMatch = result.match(/marked as complete: (.+)/)
+    return { icon: ICON.todo, label: 'todo', summary: `✓ ${cut(taskMatch?.[1] || 'Completed', 40)}` }
+  }
+  
+  if (action === 'remove') {
+    return { icon: ICON.todo, label: 'todo', summary: 'Task removed' }
+  }
+  
+  const totalMatch = result.match(/Total: (\d+) pending, (\d+) completed/)
+  if (totalMatch) {
+    const pending = parseInt(totalMatch[1], 10)
+    const completed = parseInt(totalMatch[2], 10)
+    return { icon: ICON.todo, label: 'todo', summary: `${completed}/${pending + completed} done` }
+  }
+  
+  if (result.includes('No tasks found')) {
+    return { icon: ICON.todo, label: 'todo', summary: 'No tasks' }
+  }
+  
+  return { icon: ICON.todo, label: 'todo', summary: 'Updated' }
 }
 
 const fmtMemoryAdd = (result: string, args?: Record<string, unknown>): FormattedResult => {
@@ -270,9 +294,12 @@ export const formatToolPreparing = (toolName: string, args: Record<string, unkno
     git_commit: () => `${ICON.git} commit "${cut(String(args.message || ''), 35)}"`,
     git_push: () => `${ICON.git} push`,
     todo_write: () => {
-      const todos = (args.todos || []) as Array<{ status?: string }>
-      const done = todos.filter(t => t.status === 'completed').length
-      return `${ICON.todo} ${done}/${todos.length} done`
+      const action = String(args.action || 'list')
+      const task = String(args.task || '')
+      if (action === 'add') return `${ICON.todo} + ${cut(task, 40)}`
+      if (action === 'complete') return `${ICON.todo} ✓ completing task`
+      if (action === 'remove') return `${ICON.todo} removing task`
+      return `${ICON.todo} listing tasks`
     },
     add_memory: () => `${ICON.memory} adding...`,
     memory_add: () => `${ICON.memory} adding...`,

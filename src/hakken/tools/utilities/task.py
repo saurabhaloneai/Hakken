@@ -6,6 +6,29 @@ if TYPE_CHECKING:
     from hakken.subagents.manager import SubagentManager
 
 
+TOOL_DESCRIPTION = """Delegate a complex, multi-step task to a specialized subagent.
+
+Use this tool when you need to:
+- Break down a large problem into focused subtasks
+- Perform a complex operation that requires multiple steps
+- Maintain context isolation for a specific piece of work
+- Run tasks that might take significant time or resources
+
+The subagent will:
+- Receive the task description
+- Plan and execute the necessary steps
+- Report back with results
+- Maintain its own context and state
+
+Best for:
+- Complex refactoring tasks
+- Feature implementation with multiple files
+- Debugging multi-step issues
+- Tasks requiring focused, isolated context
+
+Note: This requires subagent support to be enabled."""
+
+
 class TaskTool(BaseTool):
     def __init__(self, ui_manager: "UIManager" = None, subagent_manager: "SubagentManager" = None):
         super().__init__()
@@ -48,27 +71,7 @@ class TaskTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Delegate a complex, multi-step task to a specialized subagent.
-
-Use this tool when you need to:
-- Break down a large problem into focused subtasks
-- Perform a complex operation that requires multiple steps
-- Maintain context isolation for a specific piece of work
-- Run tasks that might take significant time or resources
-
-The subagent will:
-- Receive the task description
-- Plan and execute the necessary steps
-- Report back with results
-- Maintain its own context and state
-
-Best for:
-- Complex refactoring tasks
-- Feature implementation with multiple files
-- Debugging multi-step issues
-- Tasks requiring focused, isolated context
-
-Note: This requires subagent support to be enabled.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

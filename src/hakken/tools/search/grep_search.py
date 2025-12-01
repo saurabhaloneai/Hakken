@@ -3,6 +3,20 @@ import re
 from hakken.tools.base import BaseTool
 
 
+TOOL_DESCRIPTION = """Search for text patterns in file contents (like grep command).
+
+Use this to find code or text when you know what you're looking for:
+- Find function calls: pattern='function_name('
+- Find class definitions: pattern='class.*MyClass'
+- Find imports: pattern='import.*module_name'
+- Find TODO comments: pattern='TODO'
+
+Supports regular expressions for complex patterns. Shows matching lines with file paths and line numbers.
+
+Unlike file_search which searches file names, this searches file contents.
+Unlike semantic_search which understands meaning, this does exact text/regex matching."""
+
+
 class GrepSearchTool(BaseTool):
     def __init__(self):
         super().__init__()
@@ -87,18 +101,7 @@ class GrepSearchTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Search for text patterns in file contents (like grep command).
-
-Use this to find code or text when you know what you're looking for:
-- Find function calls: pattern='function_name('
-- Find class definitions: pattern='class.*MyClass'
-- Find imports: pattern='import.*module_name'
-- Find TODO comments: pattern='TODO'
-
-Supports regular expressions for complex patterns. Shows matching lines with file paths and line numbers.
-
-Unlike file_search which searches file names, this searches file contents.
-Unlike semantic_search which understands meaning, this does exact text/regex matching.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

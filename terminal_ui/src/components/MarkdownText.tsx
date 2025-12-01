@@ -5,6 +5,7 @@ interface MarkdownTextProps {
   children: string
   color?: TextProps['color']
   indent?: string
+  width?: number
 }
 
 interface TextSegment {
@@ -105,18 +106,23 @@ const renderSegments = (segments: TextSegment[], baseColor?: TextProps['color'])
   })
 }
 
-export const MarkdownLine: React.FC<{ line: string; color?: TextProps['color']; indent?: string; isCode?: boolean }> = ({ 
+export const MarkdownLine: React.FC<{ line: string; color?: TextProps['color']; indent?: string; isCode?: boolean; width?: number }> = ({ 
   line, 
   color,
   indent = '  ',
-  isCode = false
+  isCode = false,
+  width
 }) => {
+  const textWidth = width ? width - 6 : undefined
+  
   // Code block content - render as-is with code styling
   if (isCode) {
     return (
-      <Text color="gray">
-        {indent}  <Text color="white">{line}</Text>
-      </Text>
+      <Box width={textWidth}>
+        <Text color="gray" wrap="wrap">
+          {indent}  <Text color="white">{line}</Text>
+        </Text>
+      </Box>
     )
   }
 
@@ -126,9 +132,11 @@ export const MarkdownLine: React.FC<{ line: string; color?: TextProps['color']; 
     const [, spaces, , content] = listMatch
     const segments = parseInlineMarkdown(content)
     return (
-      <Text>
-        {indent}{spaces}<Text color="cyan">•</Text> {renderSegments(segments, color)}
-      </Text>
+      <Box width={textWidth}>
+        <Text wrap="wrap">
+          {indent}{spaces}<Text color="cyan">•</Text> {renderSegments(segments, color)}
+        </Text>
+      </Box>
     )
   }
   
@@ -138,9 +146,11 @@ export const MarkdownLine: React.FC<{ line: string; color?: TextProps['color']; 
     const [, hashes, content] = headerMatch
     const level = hashes.length
     return (
-      <Text bold color={level === 1 ? 'cyanBright' : level === 2 ? 'cyan' : 'white'}>
-        {indent}{content}
-      </Text>
+      <Box width={textWidth}>
+        <Text bold color={level === 1 ? 'cyanBright' : level === 2 ? 'cyan' : 'white'} wrap="wrap">
+          {indent}{content}
+        </Text>
+      </Box>
     )
   }
   
@@ -155,27 +165,31 @@ export const MarkdownLine: React.FC<{ line: string; color?: TextProps['color']; 
   
   // Regular line with inline formatting
   const segments = parseInlineMarkdown(line)
-  return <Text color={color}>{indent}{renderSegments(segments, color)}</Text>
+  return (
+    <Box width={textWidth}>
+      <Text color={color} wrap="wrap">{indent}{renderSegments(segments, color)}</Text>
+    </Box>
+  )
 }
 
-export const MarkdownText: React.FC<MarkdownTextProps> = ({ children, color, indent = '  ' }) => {
+export const MarkdownText: React.FC<MarkdownTextProps> = ({ children, color, indent = '  ', width }) => {
   if (!children) return null
   
   const lines = children.split('\n')
   let inCodeBlock = false
   
   return (
-    <>
+    <Box flexDirection="column" width={width}>
       {lines.map((line, idx) => {
         // Toggle code block state
         if (line.trim().startsWith('```')) {
           const wasInCodeBlock = inCodeBlock
           inCodeBlock = !inCodeBlock
-          return <MarkdownLine key={idx} line={line} color={color} indent={indent} isCode={false} />
+          return <MarkdownLine key={idx} line={line} color={color} indent={indent} isCode={false} width={width} />
         }
         
-        return <MarkdownLine key={idx} line={line} color={color} indent={indent} isCode={inCodeBlock} />
+        return <MarkdownLine key={idx} line={line} color={color} indent={indent} isCode={inCodeBlock} width={width} />
       })}
-    </>
+    </Box>
   )
 }

@@ -12,6 +12,7 @@ interface MessageBubbleProps {
   variant?: MessageBubbleVariant
   icon?: string
   markdown?: boolean
+  width?: number
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -21,15 +22,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   meta,
   variant = 'solid',
   icon,
-  markdown = false
+  markdown = false,
+  width
 }) => {
   const contentColor: TextProps['color'] | undefined = variant === 'ghost' ? 'gray' : undefined
   const isMultiline = content.includes('\n')
+  const textWidth = width ? width - 4 : undefined
 
   // For multiline markdown content, render header separately
   if (markdown && isMultiline) {
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" width={textWidth}>
         <Box flexDirection="row">
           <Text>
             {icon && <Text color={color}>{icon} </Text>}
@@ -41,7 +44,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </Text>
         </Box>
         <Box marginLeft={2}>
-          <MarkdownText color={contentColor}>{content}</MarkdownText>
+          <MarkdownText color={contentColor} width={textWidth ? textWidth - 2 : undefined}>{content}</MarkdownText>
         </Box>
       </Box>
     )
@@ -49,18 +52,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   // Single line or non-markdown
   return (
-    <Box>
-      <Box flexDirection="row">
-        <Text>
-          {icon && <Text color={color}>{icon} </Text>}
-          <Text bold color={color}>{label}</Text>
-          <Text color={color}> ❯</Text>
-          {meta && (
-            <Text dimColor color={variant === 'ghost' ? 'gray' : color}> · {meta}</Text>
-          )}
-          <Text color={contentColor}> {content}</Text>
-        </Text>
-      </Box>
+    <Box width={textWidth}>
+      <Text wrap="wrap">
+        {icon && <Text color={color}>{icon} </Text>}
+        <Text bold color={color}>{label}</Text>
+        <Text color={color}> ❯</Text>
+        {meta && (
+          <Text dimColor color={variant === 'ghost' ? 'gray' : color}> · {meta}</Text>
+        )}
+        <Text color={contentColor}> {content}</Text>
+      </Text>
     </Box>
   )
 }

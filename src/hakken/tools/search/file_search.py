@@ -3,6 +3,19 @@ from pathlib import Path
 from hakken.tools.base import BaseTool
 
 
+TOOL_DESCRIPTION = """Search for files by name pattern in a directory tree.
+
+Use this to find files when you know (part of) the filename but not the exact location:
+- Find all Python files: pattern='*.py'
+- Find test files: pattern='*test*.py'  
+- Find config files: pattern='config.*'
+- Find specific file: pattern='setup.py'
+
+Supports glob patterns with wildcards (* and ?). Results are limited to 50 files to avoid overwhelming output.
+
+Unlike grep_search which searches file contents, this searches file names."""
+
+
 class FileSearchTool(BaseTool):
     def __init__(self):
         super().__init__()
@@ -61,17 +74,7 @@ class FileSearchTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Search for files by name pattern in a directory tree.
-
-Use this to find files when you know (part of) the filename but not the exact location:
-- Find all Python files: pattern='*.py'
-- Find test files: pattern='*test*.py'  
-- Find config files: pattern='config.*'
-- Find specific file: pattern='setup.py'
-
-Supports glob patterns with wildcards (* and ?). Results are limited to 50 files to avoid overwhelming output.
-
-Unlike grep_search which searches file contents, this searches file names.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

@@ -1,6 +1,24 @@
 import os
 from hakken.tools.base import BaseTool
 
+
+TOOL_DESCRIPTION = """Permanently deletes a file from the filesystem.
+
+⚠️ WARNING: This action is permanent and cannot be undone.
+
+Use cases:
+- Removing temporary or generated files
+- Cleaning up test artifacts
+- Deleting obsolete code files
+
+The tool will:
+- Verify the file exists before attempting deletion
+- Confirm the path is a file (not a directory)
+- Require an absolute path for safety
+
+Returns a success message if the file was deleted successfully."""
+
+
 class DeleteFileTool(BaseTool):
     def __init__(self):
         super().__init__()
@@ -30,21 +48,7 @@ class DeleteFileTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Permanently deletes a file from the filesystem.
-
-⚠️ WARNING: This action is permanent and cannot be undone.
-
-Use cases:
-- Removing temporary or generated files
-- Cleaning up test artifacts
-- Deleting obsolete code files
-
-The tool will:
-- Verify the file exists before attempting deletion
-- Confirm the path is a file (not a directory)
-- Require an absolute path for safety
-
-Returns a success message if the file was deleted successfully.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

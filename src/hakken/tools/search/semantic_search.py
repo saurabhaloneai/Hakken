@@ -3,6 +3,31 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 from hakken.tools.base import BaseTool
 
+
+TOOL_DESCRIPTION = """Searches code using semantic similarity (understands meaning, not just exact text matches).
+
+Unlike grep which finds exact text or regex patterns, semantic search understands:
+- Conceptual similarity (e.g., "user authentication" finds login code)
+- Code intent (e.g., "error handling" finds try-catch blocks)
+- Related functionality (e.g., "database query" finds ORM calls)
+
+How it works:
+- Embeds your query and code snippets into vector space
+- Returns the top_k most semantically similar code sections
+- Uses ChromaDB and sentence-transformers for local search
+
+Two modes:
+1. **Search mode**: Provide 'query' to search indexed code
+2. **Index mode**: Provide 'index_path' to index a directory for searching
+
+Use this when:
+- You don't know the exact function/variable names
+- You're looking for code that does something conceptually
+- Grep returns too many results or misses relevant code
+
+Note: Requires initialization and indexing before searching."""
+
+
 class SemanticSearchTool(BaseTool):
     def __init__(self):
         super().__init__()
@@ -64,28 +89,7 @@ class SemanticSearchTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Searches code using semantic similarity (understands meaning, not just exact text matches).
-
-Unlike grep which finds exact text or regex patterns, semantic search understands:
-- Conceptual similarity (e.g., "user authentication" finds login code)
-- Code intent (e.g., "error handling" finds try-catch blocks)
-- Related functionality (e.g., "database query" finds ORM calls)
-
-How it works:
-- Embeds your query and code snippets into vector space
-- Returns the top_k most semantically similar code sections
-- Uses ChromaDB and sentence-transformers for local search
-
-Two modes:
-1. **Search mode**: Provide 'query' to search indexed code
-2. **Index mode**: Provide 'index_path' to index a directory for searching
-
-Use this when:
-- You don't know the exact function/variable names
-- You're looking for code that does something conceptually
-- Grep returns too many results or misses relevant code
-
-Note: Requires initialization and indexing before searching.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

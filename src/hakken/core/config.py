@@ -1,15 +1,16 @@
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+################ API Client Configuration ################
 
 class APIClientConfig(BaseSettings):
-    api_key: str = Field(..., description="OpenAI API key")
-    base_url: str = Field(..., description="OpenAI API base URL")
-    model: str = Field(..., description="Model to use for completions")
-    timeout: float = Field(120.0, description="Request timeout in seconds")
-    max_retries: int = Field(3, description="Maximum number of retry attempts")
-    base_delay: float = Field(1.0, description="Base delay for exponential backoff")
-    max_delay: float = Field(30.0, description="Maximum delay between retries")
+    api_key: str = Field(...)
+    base_url: str = Field(...)
+    model: str = Field(...)
+    timeout: float = Field(120.0)
+    max_retries: int = Field(3)
+    base_delay: float = Field(1.0)
+    max_delay: float = Field(30.0)
     
     model_config = SettingsConfigDict(
         env_prefix="OPENAI_",

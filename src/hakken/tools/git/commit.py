@@ -1,6 +1,17 @@
 from hakken.tools.base import BaseTool
 
 
+TOOL_DESCRIPTION = """Create a git commit with a message.
+
+Best practices:
+- Use clear, descriptive commit messages
+- Review changes with git_diff before committing
+- Use add_all=true to stage all changes, or stage specific files first
+- Check git_status to see what will be committed
+
+The commit message should describe what changed and why."""
+
+
 class GitCommitTool(BaseTool):
     def __init__(self):
         super().__init__()
@@ -34,15 +45,7 @@ class GitCommitTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Create a git commit with a message.
-
-Best practices:
-- Use clear, descriptive commit messages
-- Review changes with git_diff before committing
-- Use add_all=true to stage all changes, or stage specific files first
-- Check git_status to see what will be committed
-
-The commit message should describe what changed and why.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

@@ -3,6 +3,18 @@ import json
 from hakken.tools.base import BaseTool
 
 
+TOOL_DESCRIPTION = """Retrieve all repository-specific knowledge entries from persistent storage.
+
+Use this tool to:
+- Review stored knowledge about the codebase architecture
+- Check important configuration details and conventions
+- Recall key dependencies and their purposes
+- Access non-obvious implementation details
+- Remember project-specific terminology
+
+This is separate from task management (use todo_write for tasks). This retrieves knowledge about the repository itself."""
+
+
 class ListMemoriesTool(BaseTool):
     def __init__(self, memory_file=".hakken_memories.json"):
         super().__init__()
@@ -37,16 +49,7 @@ class ListMemoriesTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Retrieve all repository-specific knowledge entries from persistent storage.
-
-Use this tool to:
-- Review stored knowledge about the codebase architecture
-- Check important configuration details and conventions
-- Recall key dependencies and their purposes
-- Access non-obvious implementation details
-- Remember project-specific terminology
-
-This is separate from task management (use todo_write for tasks). This retrieves knowledge about the repository itself.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {},

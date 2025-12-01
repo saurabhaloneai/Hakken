@@ -102,8 +102,8 @@ const App: React.FC = () => {
 
       {/* Messages */}
       <Box flexDirection="column" marginBottom={1}>
-        <MessageList messages={messages} />
-        <StreamingResponse content={currentResponse} />
+        <MessageList messages={messages} width={width} />
+        <StreamingResponse content={currentResponse} width={width} />
         {(mode === 'thinking' || mode === 'executing') && !currentResponse && (
           <Spinner label={statusLine} />
         )}

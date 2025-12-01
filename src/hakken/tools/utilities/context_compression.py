@@ -5,6 +5,21 @@ if TYPE_CHECKING:
     from hakken.history.manager import HistoryManager
 
 
+TOOL_DESCRIPTION = """Manually manage conversation context and compression.
+
+Use this tool to:
+- Check current context usage (action="status")
+- Clear old tool results to free space (action="clear_tools")
+- Compress conversation history (action="compress")
+
+The compression uses LLM-based summarization to preserve key decisions and context while removing redundant information.
+
+When to use:
+- Context window approaching limit
+- Before starting new phase of work
+- After extensive tool usage with lots of outputs"""
+
+
 class ContextCompressionTool(BaseTool):
     def __init__(self, history_manager: Optional["HistoryManager"] = None):
         super().__init__()
@@ -49,19 +64,7 @@ class ContextCompressionTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Manually manage conversation context and compression.
-
-Use this tool to:
-- Check current context usage (action="status")
-- Clear old tool results to free space (action="clear_tools")
-- Compress conversation history (action="compress")
-
-The compression uses LLM-based summarization to preserve key decisions and context while removing redundant information.
-
-When to use:
-- Context window approaching limit
-- Before starting new phase of work
-- After extensive tool usage with lots of outputs""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

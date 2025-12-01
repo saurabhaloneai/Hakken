@@ -2,6 +2,24 @@ import subprocess
 from hakken.tools.base import BaseTool
 
 
+TOOL_DESCRIPTION = """Executes shell commands in the workspace with timeout and approval controls.
+
+⚠️ Security: Always set need_user_approve=true for potentially dangerous commands (rm, sudo, chmod 777, etc.)
+
+This tool supports:
+- Running bash/shell commands with configurable timeout (default 30s, max 120s)
+- Capturing stdout/stderr output
+- Detecting command failures via exit codes
+
+Best practices:
+- Use absolute paths to avoid working directory issues
+- For file operations, prefer dedicated file tools (read_file, edit_file, etc.) when available
+- For git operations, verify changes with git status/diff before committing
+- Batch independent commands when possible for better performance
+
+Returns command output on success, or error message with exit code on failure."""
+
+
 class CmdRunner(BaseTool):
     def __init__(self):
         super().__init__()
@@ -38,22 +56,7 @@ class CmdRunner(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Executes shell commands in the workspace with timeout and approval controls.
-
-⚠️ Security: Always set need_user_approve=true for potentially dangerous commands (rm, sudo, chmod 777, etc.)
-
-This tool supports:
-- Running bash/shell commands with configurable timeout (default 30s, max 120s)
-- Capturing stdout/stderr output
-- Detecting command failures via exit codes
-
-Best practices:
-- Use absolute paths to avoid working directory issues
-- For file operations, prefer dedicated file tools (read_file, edit_file, etc.) when available
-- For git operations, verify changes with git status/diff before committing
-- Batch independent commands when possible for better performance
-
-Returns command output on success, or error message with exit code on failure.""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

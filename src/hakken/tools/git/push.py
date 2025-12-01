@@ -3,6 +3,22 @@ import os
 from hakken.tools.base import BaseTool
 
 
+TOOL_DESCRIPTION = """Push commits to a remote git repository.
+
+⚠️ Warning: This modifies remote repository state.
+
+Use this to:
+- Share commits with team members
+- Back up local commits to remote
+- Deploy changes to production branch
+
+Best practices:
+- Review commits with git_log before pushing
+- Avoid force push unless absolutely necessary
+- Ensure you're on the correct branch
+- Pull latest changes before pushing to avoid conflicts"""
+
+
 class GitPushTool(BaseTool):
     def __init__(self):
         super().__init__()
@@ -46,20 +62,7 @@ class GitPushTool(BaseTool):
             "type": "function",
             "function": {
                 "name": self.get_tool_name(),
-                "description": """Push commits to a remote git repository.
-
-⚠️ Warning: This modifies remote repository state.
-
-Use this to:
-- Share commits with team members
-- Back up local commits to remote
-- Deploy changes to production branch
-
-Best practices:
-- Review commits with git_log before pushing
-- Avoid force push unless absolutely necessary
-- Ensure you're on the correct branch
-- Pull latest changes before pushing to avoid conflicts""",
+                "description": TOOL_DESCRIPTION,
                 "parameters": {
                     "type": "object",
                     "properties": {

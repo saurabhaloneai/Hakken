@@ -1,13 +1,13 @@
-import asyncio
 import argparse
 import sys
 import os
 from pathlib import Path
 
-from hakken.core.factory import AgentFactory
-from hakken.terminal_bridge import UIManager
 
 async def run_agent():
+    from hakken.core.factory import AgentFactory
+    from hakken.terminal_bridge import UIManager
+    
     ui = UIManager()
     try:
         agent = AgentFactory.create_agent(ui_manager=ui)
@@ -19,35 +19,35 @@ async def run_agent():
         import traceback
         traceback.print_exc()
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Hakken CLI - Command Line Interface for Hakken Application")
-    parser.add_argument('--version', action='version', version='%(prog)s 1.0', help='Show the version of the application')
-    parser.add_argument('--ui', choices=['terminal', 'react'], default='react', help='Choose UI mode (default: react)')
-    
+    parser = argparse.ArgumentParser(description="Hakken CLI")
+    parser.add_argument('--version', action='version', version='%(prog)s 1.0')
+    parser.add_argument('--ui', choices=['terminal', 'react'], default='react')
     args = parser.parse_args()
     
     if args.ui == 'react':
-        # Launch React UI
         cli_file = Path(__file__).resolve()
         project_root = cli_file.parent.parent.parent
-        app_tsx = project_root / "terminal_ui" / "src" / "index.tsx"
+        dist_js = project_root / "terminal_ui" / "dist" / "index.js"
         
-        if not app_tsx.exists():
-            print(f"Error: Could not find terminal UI at {app_tsx}", file=sys.stderr)
-            sys.exit(1)
+        if dist_js.exists():
+            cmd = ["node", str(dist_js)]
+        else:
+            app_tsx = project_root / "terminal_ui" / "src" / "index.tsx"
+            if not app_tsx.exists():
+                print("Error: Could not find terminal UI", file=sys.stderr)
+                sys.exit(1)
+            cmd = ["npx", "tsx", "--tsconfig", str(project_root / "terminal_ui" / "tsconfig.json"), str(app_tsx)]
             
         try:
-            os.chdir(project_root)
             import subprocess
-            subprocess.run(
-                ["npx", "tsx", "--tsconfig", "terminal_ui/tsconfig.json", str(app_tsx)],
-                check=True
-            )
+            subprocess.run(cmd, check=True, cwd=project_root, env={**os.environ, "HAKKEN_WORK_DIR": os.getcwd()})
         except Exception as e:
             print(f"Error launching React UI: {e}")
             sys.exit(1)
     else:
-        # Run Python Agent directly (Default)
+        import asyncio
         asyncio.run(run_agent())
 
 if __name__ == "__main__":
