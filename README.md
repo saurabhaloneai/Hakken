@@ -12,7 +12,8 @@
 
 >[!NOTE]
 > 
->
+> I have tested this project only on few long horizon coding tasks. 
+> First i just want to make sure everything works great on small taks before i go all in.
 
 
 ## core features
@@ -25,33 +26,6 @@
 - **Memory System** - Repository-specific knowledge retention and retrieval
 - **Task Management** - TODO tracking and autonomous task execution via subagents
 - **Context Engineering** - Advanced context window management and optimization
-
-## project structure
-
-```
-hakken/
-├── src/hakken/              # Main Python package
-│   ├── core/                # Core agent components
-│   │   ├── agent.py         # Main agent implementation
-│   │   ├── factory.py       # Factory pattern for component creation
-│   │   └── client.py        # LLM client wrapper
-│   ├── tools/               # Comprehensive tool system
-│   │   ├── filesystem/      # File operations (read, edit, delete, list_dir, search_replace)
-│   │   ├── search/          # Code search (grep, file, semantic)
-│   │   ├── execution/       # Terminal command execution
-│   │   ├── git/             # Git operations (status, commit, push, diff, log)
-│   │   ├── memory/          # Knowledge storage and retrieval
-│   │   └── utilities/       # Task, TODO, and context compression
-│   ├── prompts/             # System prompts and rules
-│   ├── history/             # Conversation history management
-│   ├── subagents/           # Autonomous subagent manager
-│   ├── terminal_bridge.py   # UI manager and Python-UI bridge
-│   └── cli.py               # CLI entry point
-├── terminal_ui/             # React/Ink TypeScript UI
-│   └── src/                 # UI source code
-├── tests/                   # Test suite
-└── pyproject.toml           # Project configuration
-```
 
 ## how to run 
 
@@ -178,11 +152,6 @@ Hakken implements several techniques to manage and optimize the LLM context wind
 - Automatically compresses conversation history when context usage exceeds threshold (configurable via `COMPRESS_THRESHOLD`)
 - Uses LLM to generate intelligent summaries preserving key decisions, unresolved issues, and important context
 - Retains system messages and recent interactions while summarizing older sessions
-
-### token usage tracking & monitoring
-- Real-time tracking of input/output tokens per request
-- Context window usage displayed as percentage
-- Configurable max token limit via `MODEL_MAX_TOKENS`
 
 ### tool result management
 - Automatically clears old tool results after every 10 tool calls (keeps last 5)
