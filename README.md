@@ -161,3 +161,10 @@ Hakken implements several techniques to manage and optimize the LLM context wind
 - Trims and validates assistant content before storing
 - Handles empty responses with fallback content
 - Proper tool-call detection and structured message building
+
+
+## working on 
+
+- [ ] memory 
+- [ ] local llm support with vLLM
+- [ ] improve tool execution 
