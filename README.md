@@ -121,21 +121,6 @@ Hakken provides a comprehensive set of tools for AI-powered code operations:
 - **context_compression** - Intelligent conversation history compression
 
 
-### tool manager
-
-All tools are centrally registered and managed:
-
-- Automatic tool discovery and validation
-- JSON schema generation for LLM tool use
-- Clean tool execution pipeline
-
-### ui bridge
-
-The terminal bridge (`terminal_bridge.py`) provides:
-- WebSocket-based communication between Python agent and React UI
-- Message streaming and event handling
-- UI state management
-
 ### subagent system
 
 Autonomous subagents can be spawned for:
