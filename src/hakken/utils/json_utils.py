@@ -1,6 +1,6 @@
 """JSON parsing utilities."""
 import json
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Any
 
 
 def is_valid_json_start(s: str) -> bool:
@@ -18,6 +18,28 @@ def is_valid_json_start(s: str) -> bool:
             s[idx] == '-'
         )
     return False
+
+
+def _try_parse_stringified_json(value: Any) -> Any:
+    """Recursively parse values that might be stringified JSON.
+    
+    LLMs sometimes double-encode JSON, sending arrays/objects as strings.
+    This function detects and parses such cases.
+    """
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.startswith(('[', '{')):
+            try:
+                parsed = json.loads(stripped)
+                return _try_parse_stringified_json(parsed)
+            except json.JSONDecodeError:
+                return value
+        return value
+    elif isinstance(value, dict):
+        return {k: _try_parse_stringified_json(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [_try_parse_stringified_json(item) for item in value]
+    return value
 
 
 def parse_tool_arguments(raw_args: str) -> Tuple[dict, Optional[str]]:
@@ -40,6 +62,7 @@ def parse_tool_arguments(raw_args: str) -> Tuple[dict, Optional[str]]:
     try:
         decoded = json.loads(raw_args)
         if isinstance(decoded, dict):
+            decoded = _try_parse_stringified_json(decoded)
             return decoded, None
         return {}, "Expected JSON object"
     except json.JSONDecodeError as e:

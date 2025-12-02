@@ -75,6 +75,13 @@ class APIClient:
             f"Streaming API request failed after {self.config.max_retries} retries: {str(last_error)}"
         )
     
+    def _is_retryable_error(self, error: Exception) -> bool:
+        return is_retryable(error)
+    
+    def _calculate_delay(self, attempt: int) -> float:
+        delay = self.config.base_delay * (2 ** attempt)
+        return min(delay, self.config.max_delay)
+    
     def _stream_completion(self, request_params: Dict[str, Any]) -> Generator[str, None, None]:
         stream = self.client.chat.completions.create(**request_params)
         

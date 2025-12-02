@@ -158,7 +158,12 @@ class Bridge:
         msg = {"role": "user", "content": [{"type": "text", "text": message}]}
         self.state = self.state.with_message(msg)
         self.agent.add_message(msg)
-        await self.agent._recursive_message_handling()
+        try:
+            await self.agent._recursive_message_handling()
+        except Exception as e:
+            self.emit("error", {"message": str(e), "type": type(e).__name__})
+            self.set_turn_status("error", f"Error: {str(e)[:200]}")
+            return
         if not self.stop_requested:
             self.set_turn_status("idle", "turn completed")
             self.emit_state()
@@ -190,6 +195,10 @@ class Bridge:
         self.set_turn_status("interrupted", "user forced new input")
         if self.task and not self.task.done():
             self.task.cancel()
+            try:
+                await self.task
+            except asyncio.CancelledError:
+                pass
         self.task = asyncio.create_task(self.handle_input(message))
         await self.task
     
@@ -197,26 +206,37 @@ class Bridge:
         msg_type = msg.get("type")
         data = msg.get("data", {})
         
-        if msg_type == "user_input":
-            self.task = asyncio.create_task(self.handle_input(data.get("message", "")))
-            await self.task
-        elif msg_type == "tool_approval":
-            await self.handle_approval(data.get("approved", False), data.get("content", ""))
-        elif msg_type == "stop_agent":
-            await self.handle_stop()
-        elif msg_type == "force_interrupt":
-            await self.handle_interrupt(data.get("message", ""))
+        try:
+            if msg_type == "user_input":
+                self.task = asyncio.create_task(self.handle_input(data.get("message", "")))
+                await self.task
+            elif msg_type == "tool_approval":
+                await self.handle_approval(data.get("approved", False), data.get("content", ""))
+            elif msg_type == "stop_agent":
+                await self.handle_stop()
+            elif msg_type == "force_interrupt":
+                await self.handle_interrupt(data.get("message", ""))
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            self.emit("error", {"message": str(e), "type": type(e).__name__})
+            self.set_turn_status("error", f"Unhandled error: {str(e)[:200]}")
     
     async def read_stdin(self):
         loop = asyncio.get_event_loop()
         while True:
-            line = await loop.run_in_executor(None, sys.stdin.readline)
-            if not line:
-                break
-            line = line.strip()
-            if not line:
-                continue
-            await self.process(json.loads(line))
+            try:
+                line = await loop.run_in_executor(None, sys.stdin.readline)
+                if not line:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                await self.process(json.loads(line))
+            except json.JSONDecodeError as e:
+                self.emit("error", {"message": f"Invalid JSON input: {str(e)}", "type": "JSONDecodeError"})
+            except Exception as e:
+                self.emit("error", {"message": str(e), "type": type(e).__name__})
     
     async def run(self):
         work_dir = os.environ.get("HAKKEN_WORK_DIR")
