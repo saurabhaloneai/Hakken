@@ -3,11 +3,11 @@
 from hakken.history.manager import (
     HistoryManager,
     BaseHistoryManager,
-    TokenUsage,
     Role,
     Crop_Direction,
 )
 from hakken.history.tracer import TraceLogger, TraceSession
+from hakken.core.state import TokenUsage
 
 __all__ = [
     "HistoryManager",

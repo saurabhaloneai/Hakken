@@ -1,4 +1,5 @@
 import json
+import re
 from typing import TYPE_CHECKING
 
 from hakken.utils.json_utils import parse_tool_arguments
@@ -8,19 +9,44 @@ if TYPE_CHECKING:
     from hakken.tools.manager import ToolManager
     from hakken.terminal_bridge import UIManager
 
-################ Tool Executor ################
-
 class ToolExecutor:
+    
+    ERROR_PATTERNS = [
+        (r'File "([^"]+)", line (\d+)', r'File "\1:\2"'),
+        (r'^\s+at .+\n', ''),
+        (r'\n\s*\n+', '\n'),
+    ]
     
     def __init__(
         self, 
         tool_manager: "ToolManager", 
         ui_manager: "UIManager",
-        add_message_callback
+        add_message_callback,
+        max_error_length: int = 800
     ):
         self._tool_manager = tool_manager
         self._ui_manager = ui_manager
         self._add_message = add_message_callback
+        self._max_error_length = max_error_length
+
+    def _compact_error(self, error: str) -> str:
+        if len(error) <= self._max_error_length:
+            return error
+        
+        for pattern, replacement in self.ERROR_PATTERNS:
+            error = re.sub(pattern, replacement, error, flags=re.MULTILINE)
+        
+        if len(error) <= self._max_error_length:
+            return error.strip()
+        
+        lines = error.strip().split('\n')
+        if len(lines) <= 6:
+            return error[:self._max_error_length]
+        
+        head = '\n'.join(lines[:2])
+        tail = '\n'.join(lines[-3:])
+        omitted = len(lines) - 5
+        return f"{head}\n[...{omitted} lines omitted...]\n{tail}"
 
     async def handle_tool_calls(self, tool_calls) -> None:
         for i, tool_call in enumerate(tool_calls):
@@ -65,7 +91,10 @@ class ToolExecutor:
     async def _safe_run_tool(self, tool_name: str, tool_args: dict) -> dict:
         result = await self._tool_manager.run_tool(tool_name, **tool_args)
         if isinstance(result, str) and result.startswith("Error"):
-            return {"error": result}
+            return {"error": self._compact_error(result)}
+        if isinstance(result, dict) and "error" in result:
+            result["error"] = self._compact_error(str(result["error"]))
+            return result
         return result if isinstance(result, dict) else {"result": result}
 
     def _add_tool_response(self, tool_call, content: str, is_last_tool: bool = False) -> None:

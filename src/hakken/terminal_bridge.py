@@ -2,8 +2,10 @@ import sys
 import json
 import asyncio
 import os
-import traceback
-from typing import Optional, Any, Callable, Tuple, List, Dict
+from typing import Optional, Any, Callable, Tuple, List, Dict, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from hakken.core.state import AgentState
 
 
 class UIManager:
@@ -102,24 +104,26 @@ class UIManager:
             print()
 
 
-from hakken.core.factory import AgentFactory
-
-
 class Bridge:
     def __init__(self):
+        from hakken.core.state import AgentState
+        self.AgentState = AgentState
         self.agent = None
         self.ui: Optional[UIManager] = None
         self.task: Optional[asyncio.Task] = None
         self.stop_requested = False
-        self.turn_status: Dict[str, Any] = {"state": "idle", "reason": ""}
+        self.state = AgentState()
         
     def emit(self, msg_type: str, data: Any = None):
         output = f"__MSG__{json.dumps({'type': msg_type, 'data': data or {}})}__END__"
         print(output, flush=True)
 
-    def set_turn_status(self, state: str, reason: str = ""):
-        self.turn_status = {"state": state, "reason": reason}
-        self.emit("turn_status", self.turn_status)
+    def set_turn_status(self, mode: str, reason: str = ""):
+        self.state = self.state.with_mode(mode)
+        self.emit("turn_status", {"state": mode, "reason": reason})
+
+    def emit_state(self):
+        self.emit("agent_state", self.state.to_dict())
 
     def _record_stop_notice(self):
         if not self.agent:
@@ -144,19 +148,20 @@ class Bridge:
         self.agent.add_message(notice)
     
     def create_agent(self):
+        from hakken.core.factory import AgentFactory
         self.ui = UIManager(self.emit)
         self.agent = AgentFactory.create_agent(ui_manager=self.ui, is_bridge_mode=True)
         
     async def handle_input(self, message: str):
         self.stop_requested = False
         self.set_turn_status("running", "processing user request")
-        self.agent.add_message({
-            "role": "user",
-            "content": [{"type": "text", "text": message}]
-        })
+        msg = {"role": "user", "content": [{"type": "text", "text": message}]}
+        self.state = self.state.with_message(msg)
+        self.agent.add_message(msg)
         await self.agent._recursive_message_handling()
         if not self.stop_requested:
-            self.set_turn_status("done", "turn completed")
+            self.set_turn_status("idle", "turn completed")
+            self.emit_state()
             self.emit("complete")
     
     async def handle_approval(self, approved: bool, content: str = ""):

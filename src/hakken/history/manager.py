@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 import copy
-from dataclasses import dataclass
 import os
 from typing import TYPE_CHECKING, Dict, Optional, List, Any
 from dotenv import load_dotenv
 from enum import Enum
+from hakken.core.state import TokenUsage
 from hakken.history.tracer import TraceLogger, TraceSession
 
 if TYPE_CHECKING:
@@ -12,13 +12,6 @@ if TYPE_CHECKING:
     from hakken.core.client import APIClient
 
 load_dotenv()
-
-
-@dataclass
-class TokenUsage:
-    input_tokens: int
-    output_tokens: int
-    total_tokens: int
 
 
 class Role(str, Enum):

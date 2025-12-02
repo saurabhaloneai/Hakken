@@ -167,4 +167,6 @@ Hakken implements several techniques to manage and optimize the LLM context wind
 
 - [ ] memory 
 - [ ] local llm support with vLLM
-- [ ] improve tool execution 
+- [ ] improve tool execution
+- [ ] parallel tool call 
+- [ ]  
