@@ -1,7 +1,6 @@
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-################ API Client Configuration ################
 
 class APIClientConfig(BaseSettings):
     api_key: str = Field(...)

@@ -39,93 +39,88 @@ class ScratchpadTool(BaseTool):
         return "scratchpad"
     
     async def act(self, action="read", key=None, value=None, thought=None):
-        try:
-            pad = self._load()
-            
-            if action == "think":
-                if not thought:
-                    return "Error: thought parameter required"
-                entry = {
-                    "ts": datetime.now().isoformat(),
-                    "thought": thought
-                }
-                pad["thoughts"].append(entry)
-                if len(pad["thoughts"]) > 20:
-                    pad["thoughts"] = pad["thoughts"][-20:]
-                self._save(pad)
-                return f"Recorded: {thought}"
-            
-            elif action == "set":
-                if not key:
-                    return "Error: key parameter required"
-                pad["state"][key] = {
-                    "value": value,
-                    "updated": datetime.now().isoformat()
-                }
-                self._save(pad)
-                return f"Set {key} = {value}"
-            
-            elif action == "get":
-                if not key:
-                    return "Error: key parameter required"
-                if key not in pad["state"]:
-                    return f"Key '{key}' not found"
-                return json.dumps(pad["state"][key], indent=2)
-            
-            elif action == "delete":
-                if not key:
-                    return "Error: key parameter required"
-                if key in pad["state"]:
-                    del pad["state"][key]
-                    self._save(pad)
-                    return f"Deleted key '{key}'"
+        pad = self._load()
+        
+        if action == "think":
+            if not thought:
+                return "Error: thought parameter required"
+            entry = {
+                "ts": datetime.now().isoformat(),
+                "thought": thought
+            }
+            pad["thoughts"].append(entry)
+            if len(pad["thoughts"]) > 20:
+                pad["thoughts"] = pad["thoughts"][-20:]
+            self._save(pad)
+            return f"Recorded: {thought}"
+        
+        if action == "set":
+            if not key:
+                return "Error: key parameter required"
+            pad["state"][key] = {
+                "value": value,
+                "updated": datetime.now().isoformat()
+            }
+            self._save(pad)
+            return f"Set {key} = {value}"
+        
+        if action == "get":
+            if not key:
+                return "Error: key parameter required"
+            if key not in pad["state"]:
                 return f"Key '{key}' not found"
-            
-            elif action == "read":
-                if not pad["thoughts"] and not pad["state"]:
-                    return "Scratchpad is empty"
-                
-                result = []
-                if pad["state"]:
-                    result.append("=== STATE ===")
-                    for k, v in pad["state"].items():
-                        result.append(f"  {k}: {v['value']}")
-                
-                if pad["thoughts"]:
-                    result.append("\n=== RECENT THOUGHTS ===")
-                    for t in pad["thoughts"][-5:]:
-                        result.append(f"  [{t['ts'][:16]}] {t['thought']}")
-                
-                return "\n".join(result)
-            
-            elif action == "clear":
-                section = key
-                if section == "thoughts":
-                    pad["thoughts"] = []
-                elif section == "state":
-                    pad["state"] = {}
-                else:
-                    pad = {"thoughts": [], "state": {}, "plan": None}
+            return json.dumps(pad["state"][key], indent=2)
+        
+        if action == "delete":
+            if not key:
+                return "Error: key parameter required"
+            if key in pad["state"]:
+                del pad["state"][key]
                 self._save(pad)
-                return f"Cleared {'all' if not section else section}"
+                return f"Deleted key '{key}'"
+            return f"Key '{key}' not found"
+        
+        if action == "read":
+            if not pad["thoughts"] and not pad["state"]:
+                return "Scratchpad is empty"
             
-            elif action == "plan":
-                if thought:
-                    pad["plan"] = {
-                        "description": thought,
-                        "created": datetime.now().isoformat()
-                    }
-                    self._save(pad)
-                    return f"Plan set: {thought}"
-                elif pad["plan"]:
-                    return f"Current plan: {pad['plan']['description']}"
-                return "No plan set"
+            result = []
+            if pad["state"]:
+                result.append("=== STATE ===")
+                for k, v in pad["state"].items():
+                    result.append(f"  {k}: {v['value']}")
             
+            if pad["thoughts"]:
+                result.append("\n=== RECENT THOUGHTS ===")
+                for t in pad["thoughts"][-5:]:
+                    result.append(f"  [{t['ts'][:16]}] {t['thought']}")
+            
+            return "\n".join(result)
+        
+        if action == "clear":
+            section = key
+            if section == "thoughts":
+                pad["thoughts"] = []
+            elif section == "state":
+                pad["state"] = {}
             else:
-                return f"Error: Unknown action '{action}'. Valid: think, set, get, delete, read, clear, plan"
-                
-        except Exception as e:
-            return f"Error: {e}"
+                pad = {"thoughts": [], "state": {}, "plan": None}
+            self._save(pad)
+            return f"Cleared {'all' if not section else section}"
+        
+        if action == "plan":
+            if thought:
+                pad["plan"] = {
+                    "description": thought,
+                    "created": datetime.now().isoformat()
+                }
+                self._save(pad)
+                return f"Plan set: {thought}"
+            elif pad["plan"]:
+                return f"Current plan: {pad['plan']['description']}"
+            return "No plan set"
+        
+        return f"Error: Unknown action '{action}'. Valid: think, set, get, delete, read, clear, plan"
     
     def _load(self):
         if not os.path.exists(self.scratchpad_file):
@@ -133,22 +128,16 @@ class ScratchpadTool(BaseTool):
         try:
             with open(self.scratchpad_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                if "thoughts" not in data:
-                    data["thoughts"] = []
-                if "state" not in data:
-                    data["state"] = {}
-                if "plan" not in data:
-                    data["plan"] = None
+                data.setdefault("thoughts", [])
+                data.setdefault("state", {})
+                data.setdefault("plan", None)
                 return data
         except (json.JSONDecodeError, IOError):
             return {"thoughts": [], "state": {}, "plan": None}
     
     def _save(self, pad):
-        try:
-            with open(self.scratchpad_file, 'w', encoding='utf-8') as f:
-                json.dump(pad, f, indent=2, ensure_ascii=False)
-        except IOError as e:
-            pass
+        with open(self.scratchpad_file, 'w', encoding='utf-8') as f:
+            json.dump(pad, f, indent=2, ensure_ascii=False)
     
     def json_schema(self):
         return {

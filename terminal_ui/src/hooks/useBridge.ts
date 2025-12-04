@@ -23,7 +23,6 @@ export const useBridge = () => {
   const __filename = fileURLToPath(import.meta.url)
   const __dirname = path.dirname(__filename)
   const agentDir = path.join(__dirname, '..', '..')
-  // Use PYTHON env var if set (from cli.py), otherwise fall back to python3 in PATH
   const pythonCmd = process.env.PYTHON || 'python3'
 
   const send = (msg: BridgeMessage) => {

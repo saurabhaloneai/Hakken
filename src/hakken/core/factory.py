@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     from hakken.subagents.manager import SubagentManager
     from hakken.terminal_bridge import UIManager
 
-################ Agent Factory ################
 
 class AgentFactory:
     @staticmethod

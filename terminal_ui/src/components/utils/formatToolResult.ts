@@ -1,8 +1,3 @@
-/**
- * Clean tool result formatting for terminal display.
- * Uses ASCII symbols only. No try-catch blocks.
- */
-
 export interface FormattedResult {
   icon: string
   label: string
@@ -32,8 +27,6 @@ const ICON = {
 const MAX_LEN = 60
 const MAX_LINES = 6
 
-// --- Utilities ---
-
 const extractResult = (raw: unknown): string => {
   if (typeof raw === 'string') {
     return raw.replace(/\\n/g, '\n').replace(/\\t/g, '\t')
@@ -51,8 +44,6 @@ const cut = (s: string, max: number): string => {
 }
 
 const base = (path: string): string => path.split('/').pop() || path
-
-// --- Tool Formatters ---
 
 const fmtListDir = (result: string): FormattedResult => {
   const lines = result.split('\n').filter(Boolean)

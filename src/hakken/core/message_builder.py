@@ -1,7 +1,6 @@
 from typing import List, Dict, Any, Optional, Literal, Union
 from pydantic import BaseModel
 
-################ Pydantic Models ################
 
 class CacheControl(BaseModel):
     type: Literal["ephemeral"] = "ephemeral"
@@ -31,7 +30,6 @@ class AssistantMessage(BaseModel):
 
 Message = Union[SystemMessage, UserMessage, AssistantMessage]
 
-################ Message Builder ################
 
 class MessageBuilder:
     

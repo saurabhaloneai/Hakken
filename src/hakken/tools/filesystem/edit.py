@@ -39,7 +39,6 @@ class EditFileTool(BaseTool):
         if not content and start_line is None:
             return "Error: content is required"
 
-        # If file doesn't exist, create it (only if not specifying lines)
         if not os.path.exists(file_path):
             if start_line is not None or end_line is not None:
                 return f"Error: Cannot specify line numbers for a new file. To create {file_path}, provide only file_path and content."
@@ -49,14 +48,12 @@ class EditFileTool(BaseTool):
                 return f"Error: {error}"
             return f"Successfully created new file: {file_path}"
 
-        # Full overwrite if no lines specified
         if start_line is None and end_line is None:
             error = write_file_content(file_path, content, create_dirs=False)
             if error:
                 return f"Error: {error}"
             return f"Successfully overwrote file: {file_path}"
 
-        # Line-based edit
         if start_line is None:
             start_line = 1
         

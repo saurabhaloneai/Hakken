@@ -9,7 +9,6 @@ from hakken.utils.retry import is_retryable, retry_with_backoff
 
 logger = logging.getLogger(__name__)
 
-################ API Client ################
 
 class APIClient:
     def __init__(self, config: Optional[APIClientConfig] = None):

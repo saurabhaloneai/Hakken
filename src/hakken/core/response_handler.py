@@ -5,7 +5,6 @@ from hakken.core.models import AssistantMessage
 if TYPE_CHECKING:
     from hakken.terminal_bridge import UIManager
 
-################ Response Handler ################
 
 class ResponseHandler:
     

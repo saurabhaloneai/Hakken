@@ -8,7 +8,6 @@ from hakken.history.manager import HistoryManager
 from hakken.subagents.manager import SubagentManager
 from hakken.terminal_bridge import UIManager
 
-################ Main Agent ################
 
 class Agent:
    

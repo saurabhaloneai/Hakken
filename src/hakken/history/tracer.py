@@ -108,22 +108,11 @@ class TraceLogger:
         if isinstance(value, (list, tuple, set)):
             return [self._make_json_safe(v) for v in value]
         if hasattr(value, "model_dump"):
-            try:
-                dumped = value.model_dump()
-                return self._make_json_safe(dumped)
-            except (TypeError, ValueError, AttributeError):
-                pass
+            return self._make_json_safe(value.model_dump())
         if hasattr(value, "dict"):
-            try:
-                dumped = value.dict()
-                return self._make_json_safe(dumped)
-            except (TypeError, ValueError, AttributeError):
-                pass
+            return self._make_json_safe(value.dict())
         if hasattr(value, "__dict__"):
-            try:
-                return self._make_json_safe(vars(value))
-            except (TypeError, ValueError, AttributeError):
-                pass
+            return self._make_json_safe(vars(value))
         return str(value)
 
     def _resolve_enabled(self, explicit: Optional[bool]) -> bool:

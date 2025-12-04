@@ -144,11 +144,9 @@ class TodoTool(BaseTool):
         if todos is None:
             return "Error: todos parameter is required"
         
-        # Validate todos type
         if not isinstance(todos, list):
             return f"Error: todos must be a list, got {type(todos).__name__}"
         
-        # Validate each todo item
         for i, todo in enumerate(todos):
             if not isinstance(todo, dict):
                 return f"Error: todo item {i} must be a dict, got {type(todo).__name__}"
@@ -162,7 +160,6 @@ class TodoTool(BaseTool):
             if todo['status'] not in valid_statuses:
                 return f"Error: todo item {i} has invalid status '{todo['status']}'. Must be one of: {', '.join(valid_statuses)}"
         
-        # Store and save todos
         self.todos = todos
         self._save_todos(todos)
         self._update_ui(todos)
@@ -175,7 +172,6 @@ class TodoTool(BaseTool):
         return f"Todo list updated: {len(todos)} total ({pending} pending, {in_progress} in progress, {completed} completed)"
     
     def _load_todos(self) -> List[Dict[str, Any]]:
-        """Load todos from JSON file."""
         if not os.path.exists(self.todo_file):
             return []
         try:
@@ -185,20 +181,15 @@ class TodoTool(BaseTool):
             return []
     
     def _save_todos(self, todos: List[Dict[str, Any]]):
-        """Save todos to JSON file and update todo.md."""
-        # Save to hidden JSON file (internal state)
         with open(self.todo_file, 'w', encoding='utf-8') as f:
             json.dump(todos, f, indent=2, ensure_ascii=False)
         
-        # Always create/update todo.md when there are tasks
         if len(todos) > 0:
             self._write_todo_md(todos)
         elif os.path.exists(self.todo_md_file):
-            # Remove todo.md when all tasks are cleared
             os.remove(self.todo_md_file)
 
     def _write_todo_md(self, todos: List[Dict[str, Any]]):
-        """Generate human-readable todo.md file."""
         from datetime import datetime
         
         pending = [t for t in todos if t.get('status') == 'pending']
@@ -245,7 +236,6 @@ class TodoTool(BaseTool):
             f.write("\n".join(lines))
 
     def _update_ui(self, todos: List[Dict[str, Any]]):
-        """Update terminal UI with current todos."""
         if not self.ui_manager or not hasattr(self.ui_manager, 'display_todos'):
             return
         self.ui_manager.display_todos(todos)

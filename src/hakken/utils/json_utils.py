@@ -1,10 +1,8 @@
-"""JSON parsing utilities."""
 import json
 from typing import Tuple, Optional, Any
 
 
 def is_valid_json_start(s: str) -> bool:
-    """Check if string starts with valid JSON character."""
     idx = 0
     while idx < len(s):
         if s[idx] in ' \t\n\r':
@@ -21,11 +19,6 @@ def is_valid_json_start(s: str) -> bool:
 
 
 def _try_parse_stringified_json(value: Any) -> Any:
-    """Recursively parse values that might be stringified JSON.
-    
-    LLMs sometimes double-encode JSON, sending arrays/objects as strings.
-    This function detects and parses such cases.
-    """
     if isinstance(value, str):
         stripped = value.strip()
         if stripped.startswith(('[', '{')):
@@ -43,16 +36,6 @@ def _try_parse_stringified_json(value: Any) -> Any:
 
 
 def parse_tool_arguments(raw_args: str) -> Tuple[dict, Optional[str]]:
-    """Parse tool arguments from JSON string.
-    
-    Args:
-        raw_args: Raw JSON string containing tool arguments
-        
-    Returns:
-        Tuple of (parsed_dict, error_message)
-        If parsing succeeds, error_message is None
-        If parsing fails, parsed_dict is empty and error_message contains the error
-    """
     if not raw_args:
         return {}, None
     
